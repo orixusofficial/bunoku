@@ -58,6 +58,9 @@
 .cell:not(:disabled):hover { box-shadow: inset 0 0 0 2px var(--sage); }
 .cell:focus-visible { outline: 3px solid var(--forest); outline-offset: 1px; z-index: 1; }
 .cell:disabled { cursor: default; }
+.cell.keyboard-selected::after { content: ''; position: absolute; inset: 3px; border: 3px solid var(--forest); border-radius: inherit; outline: 2px solid var(--cream); pointer-events: none; z-index: 6; }
+.settings-dialog[aria-labelledby="menu-confirm-title"] { display: grid; gap: 12px; text-align: center; }
+.settings-dialog[aria-labelledby="menu-confirm-title"] h2 { margin: 0 0 8px; }
 .cell img { width: 78%; height: 78%; object-fit: contain; pointer-events: none; }
 .failed-cell-bite { position: absolute; inset: 0; z-index: 3; display: block; overflow: hidden; pointer-events: none; animation: bite-overlay .7s ease-out both; }
 .failed-cell-bite img { position: absolute; top: 50%; left: 50%; width: 58%; height: 72%; max-width: 72%; max-height: 78%; object-fit: contain; transform-origin: center; }
@@ -76,6 +79,21 @@
 .game-feedback { min-height: 18px; color: var(--forest); text-align: center; font-size: 12px; font-weight: 700; }
 .starting-color { display: inline-flex; align-items: center; gap: 7px; }
 .starting-color-swatch { width: 14px; height: 14px; border: 1px solid var(--forest); border-radius: 5px; }
+.tutorial-prompt { width: min(100%, 520px); padding: 8px 14px; border: 1px solid var(--sage); border-radius: 18px; background: var(--cream); }
+.tutorial-prompt p { margin: 0; font-size: 14px; line-height: 1.4; }
+.tutorial-prompt .tutorial-explanation { margin-top: 4px; font-size: 12px; font-weight: 600; }
+.tutorial-actions-row { display: flex; justify-content: center; gap: 10px; }
+.tutorial-actions-row .text-button { min-height: 36px; font-size: 12px; }
+.cell.tutorial-dim { opacity: .38; }
+.cell.tutorial-target, .cell.tutorial-blocked, .tutorial-hint { outline: 3px solid var(--forest); outline-offset: -3px; box-shadow: inset 0 0 0 2px var(--cream), 0 0 0 2px var(--sage); }
+.cell.tutorial-region { box-shadow: inset 0 0 0 2px var(--forest); }
+.tutorial-drag-demo { position: relative; display: flex; gap: 6px; width: max-content; margin: 6px auto 0; direction: ltr; }
+.tutorial-drag-demo span { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--sage); border-radius: 7px; background: var(--sand); font-size: 22px; animation: tutorial-pencil 1.6s ease-in-out calc(var(--demo-order) * 160ms) 2 both; }
+.tutorial-drag-demo i { position: absolute; top: 0; left: 0; font-size: 22px; font-style: normal; animation: tutorial-drag 1.6s ease-in-out 2 both; }
+@keyframes tutorial-pencil { 0%, 15% { color: transparent; } 35%, 100% { color: var(--forest); } }
+@keyframes tutorial-drag { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 65% { transform: translateX(60px); opacity: 1; } 100% { transform: translateX(60px); opacity: 0; } }
+@media (min-width: 601px) { .has-level-tutorial .board { width: min(100%, 520px, max(180px, calc(100svh - 370px))); } }
+@media (prefers-reduced-motion: reduce) { .tutorial-drag-demo span, .tutorial-drag-demo i { animation: none; } .tutorial-drag-demo i { display: none; } }
 .game-result { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
 .game-result img { width: 86px; height: 86px; object-fit: contain; }
 .game-result h1 { margin: 0; color: var(--forest); font-size: 27px; }
@@ -153,6 +171,33 @@
 .tutorial-lives { flex: 0 0 100px; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px; border-radius: 16px; background: #E8DCA8; }
 .tutorial-lives img { width: 25px; height: 48px; object-fit: contain; }
 .tutorial-actions { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 17px; }
+.tutorial-screen .menu-header { gap: 10px; }
+.tutorial-screen .audio-quick-controls { flex-shrink: 0; }
+.pointer-help { margin-top: 20px; padding: 14px 18px; border: 1px solid var(--sage); border-radius: 18px; background: rgb(255 255 255 / 28%); }
+.pointer-help h3 { margin: 0 0 6px; font-size: 15px; }
+.pointer-help p { margin: 0; font-size: 13px; line-height: 1.6; }
+/* A large touch screen is not sufficient to enable the PC reference. */
+.tutorial-screen .keyboard-help { display: none; }
+@media (hover: hover) and (pointer: fine) { .tutorial-screen .keyboard-help { display: block; } }
+@media (max-width: 700px), (hover: none), (pointer: coarse) {
+  .tutorial-screen .game-header-brand { gap: 8px; }
+  .tutorial-screen .main-menu-button { min-width: 42px; min-height: 42px; justify-content: center; padding: 0 10px; }
+  .tutorial-screen .main-menu-button span { display: none; }
+}
+.keyboard-help { margin-top: 20px; padding: 18px; border: 1px solid var(--sage); border-radius: 22px; background: rgb(255 255 255 / 28%); }
+.keyboard-help h2 { margin: 0 0 14px; font-size: 20px; }
+.keyboard-help-columns { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
+.keyboard-help table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.keyboard-help th, .keyboard-help td { padding: 7px 6px; text-align: start; border-bottom: 1px solid rgb(104 117 101 / 16%); }
+.keyboard-help thead th { font-weight: 800; }
+.keyboard-help tbody th { width: 48%; font-weight: 600; }
+.keyboard-help kbd { font-family: inherit; font-weight: 800; overflow-wrap: anywhere; }
+.keyboard-help h3 { margin: 0 0 8px; font-size: 15px; }
+.keyboard-selection-help ul { list-style: none; padding: 0; margin: 0 0 18px; }
+.keyboard-selection-help li { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 4px; font-size: 13px; }
+.keyboard-selection-help kbd { min-width: 60px; direction: ltr; }
+.keyboard-selection-help p { margin: 0; font-size: 13px; line-height: 1.6; }
+@media (max-width: 700px) { .keyboard-help-columns { grid-template-columns: minmax(0, 1fr); gap: 18px; } .keyboard-help { padding: 14px; } }
 .tutorial-play { width: min(100%, 320px); min-height: 52px; font-size: 17px; }
 
 .simple-screen { width: min(100%, 760px); }
