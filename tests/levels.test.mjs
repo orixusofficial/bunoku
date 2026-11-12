@@ -97,7 +97,7 @@ test('every grid uses the existing sound paths and one play per sound request', 
         assert(existsSync(new URL(`../public/audio/${name}.mp3`, import.meta.url)))
         playSound(name)
       }
-      assert.deepEqual(played.slice(before), names.map((name) => `/audio/${name}.mp3`), `same sound contract at ${size}x${size}`)
+      assert.deepEqual(played.slice(before), names.map((name) => `./audio/${name}.mp3`), `same sound contract at ${size}x${size}`)
     }
   } finally { globalThis.Audio = originalAudio }
 })

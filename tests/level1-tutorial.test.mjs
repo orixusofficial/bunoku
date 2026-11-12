@@ -14,7 +14,7 @@ async function fixture({daily=false,level=1,storage=new Map()}={}){
  let slots=[],cursor=0,clock=1000;const sounds=[],timers=[];
  const react={useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i]},useEffect(){cursor++}};
  const jsx=(type,props)=>({type,props}),module={exports:{}};
- const req=n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
+ const req=n=>n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
  vm.runInNewContext('(function(require,module,exports){'+js+'})',{localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
  const props={initialPuzzle:puzzle,daily,onMenu(){},musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
  const render=()=>{cursor=0;return module.exports.default(props)};

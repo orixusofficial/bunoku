@@ -1,6 +1,7 @@
+import { assetUrl } from '../assetUrl.ts'
 import { t } from '../i18n'
 function Mascot() {
-  return <img className="menu-mascot" src="/bunny/bunny-menu.svg" alt={t("A cream bunny sitting beside a carrot")} />
+  return <img className="menu-mascot" src={assetUrl('bunny/bunny-menu.svg')} alt={t("A cream bunny sitting beside a carrot")} />
 }
 
 export default function MainMenu({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onPlay, onDaily, onTutorial, onSettings }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onPlay: () => void; onDaily: () => void; onTutorial: () => void; onSettings: () => void }) {

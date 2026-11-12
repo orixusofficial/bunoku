@@ -1,5 +1,7 @@
 export type SoundName = 'Xon' | 'Xoff' | 'foundbunny' | 'entery' | 'nice' | 'wow' | 'excellent' | 'unrealistic' | 'failbite' | 'win' | 'fail'
 
+import { assetUrl } from './assetUrl.ts'
+
 let soundEffectsEnabled = true
 let musicEnabled = false
 let initialized = false
@@ -12,7 +14,7 @@ function resumeMusic() {
     return
   }
   if (!music) {
-    music = new Audio('/audio/music.mp3')
+    music = new Audio(assetUrl('audio/music.mp3'))
     music.loop = true
     music.volume = 0.05
   }
@@ -63,7 +65,7 @@ export function initializeAudio() {
 }
 
 export function playSound(name: SoundName) {
-  const audio = new Audio(`/audio/${name}.mp3`)
+  const audio = new Audio(assetUrl(`audio/${name}.mp3`))
   audio.muted = !soundEffectsEnabled
   effects.add(audio)
   const release = () => effects.delete(audio)

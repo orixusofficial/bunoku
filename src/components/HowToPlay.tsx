@@ -1,3 +1,4 @@
+import { assetUrl } from '../assetUrl.ts'
 import { t } from '../i18n'
 import { useEffect, useState } from 'react'
 import MainMenuConfirmation from './MainMenuConfirmation'
@@ -25,11 +26,11 @@ function KeyboardHelp() {
 
 function RuleGrid({ variant }: { variant: string }) {
   const rabbitCells = variant === 'lines' ? [0, 5] : variant === 'touch' ? [0, 10] : [5]
-  return <div className={`rule-grid rule-grid-${variant}`} aria-hidden="true">{Array.from({ length: 16 }, (_, index) => <div className={`rule-cell cell-${index} ${rabbitCells.includes(index) ? 'has-rabbit' : ''} ${variant === 'region' && index > 7 ? 'soft-region' : ''} ${variant === 'lines' && [1, 4, 6, 9].includes(index) ? 'forbidden' : ''} ${variant === 'touch' && [1, 4, 5, 6].includes(index) ? 'forbidden' : ''} ${variant === 'region' && index === 1 ? 'allowed' : ''}`} key={index}>{rabbitCells.includes(index) && <img src="/bunny/bunny.svg" alt=""/>}{(variant === 'lines' && [1, 4, 6, 9].includes(index) || variant === 'touch' && [1, 4, 5, 6].includes(index)) && <span className="forbidden-mark">×</span>}</div>)}</div>
+  return <div className={`rule-grid rule-grid-${variant}`} aria-hidden="true">{Array.from({ length: 16 }, (_, index) => <div className={`rule-cell cell-${index} ${rabbitCells.includes(index) ? 'has-rabbit' : ''} ${variant === 'region' && index > 7 ? 'soft-region' : ''} ${variant === 'lines' && [1, 4, 6, 9].includes(index) ? 'forbidden' : ''} ${variant === 'touch' && [1, 4, 5, 6].includes(index) ? 'forbidden' : ''} ${variant === 'region' && index === 1 ? 'allowed' : ''}`} key={index}>{rabbitCells.includes(index) && <img src={assetUrl('bunny/bunny.svg')} alt=""/>}{(variant === 'lines' && [1, 4, 6, 9].includes(index) || variant === 'touch' && [1, 4, 5, 6].includes(index)) && <span className="forbidden-mark">×</span>}</div>)}</div>
 }
 
 function RuleIllustration({ variant }: { variant: string }) {
-  if (variant === 'lives') return <div className="tutorial-lives" aria-label={t("Three carrots represent three lives")}>{[0, 1, 2].map((life) => <img src="/bunny/carrot-life.svg" key={life} alt="" />)}</div>
+  if (variant === 'lives') return <div className="tutorial-lives" aria-label={t("Three carrots represent three lives")}>{[0, 1, 2].map((life) => <img src={assetUrl('bunny/carrot-life.svg')} key={life} alt="" />)}</div>
   return <RuleGrid variant={variant} />
 }
 
