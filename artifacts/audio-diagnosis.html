@@ -1,0 +1,5 @@
+<html><body><div id="root"></div><pre id="status" style="position:fixed;bottom:0;left:0;font:11px monospace;pointer-events:none;background:white;z-index:100"></pre><script type="module">
+const players=[],attempts=[];const NativeAudio=window.Audio;
+window.Audio=function(src){const audio=new NativeAudio(src);players.push(audio);const play=audio.play.bind(audio);audio.play=()=>{attempts.push({src,hidden:document.hidden});return play().catch(e=>{attempts.push({error:e.name,message:e.message,src});throw e})};return audio};
+await import('/src/main.tsx');setInterval(()=>{document.querySelector('#status').textContent=JSON.stringify({hidden:document.hidden,players:players.map(a=>({src:a.src.split('/').at(-1),paused:a.paused,muted:a.muted,time:a.currentTime,error:a.error?.message,volume:a.volume,loop:a.loop})),attempts},null,1)},100);
+</script></body></html>

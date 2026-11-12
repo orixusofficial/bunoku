@@ -1,0 +1,56 @@
+{
+  "backup": "D:\\bunoku\\backups\\before-level-progression-20261112-175927",
+  "modified": [
+    "PRD.md",
+    "src/App.tsx",
+    "src/components/GameScreen.tsx",
+    "src/game/generator.ts",
+    "src/game/puzzle.ts",
+    "src/game/puzzleClient.ts",
+    "src/game/puzzle.worker.ts"
+  ],
+  "created": [
+    "src/game/levels.ts",
+    "tests/levels.test.mjs"
+  ],
+  "requestedLevels": {
+    "1": 4,
+    "2": 6,
+    "5": 8,
+    "10": 9,
+    "15": 8,
+    "20": 9
+  },
+  "automatedTests": 19,
+  "requestedLevelSamplesEach": 30,
+  "baseProgressionSamples": 400,
+  "browserCompletedLevels": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "restartLevel20SamePuzzle": true,
+  "reloadAfterLevel20": "Level 21, 6x6",
+  "audioAndAssetsMatchBackup": true,
+  "build": "passed",
+  "targetedLint": "passed",
+  "difficulty": "Tier increases every ten levels, capped at 4; selects highest arrangement score from 1 + 4*tier certified candidates. Human difficulty not yet calibrated.",
+  "persistence": "Level number is saved; a reload generates a fresh puzzle for that saved level."
+}

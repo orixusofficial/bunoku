@@ -1,0 +1,982 @@
+--- before/PRD.md
++++ after/PRD.md
+@@ -28,6 +28,18 @@
+ 6. Incorrect placements count as mistakes.
+ 
+ The game should automatically mark impossible cells when a rabbit is placed.
++
++### Approved progressive generation
++
++- Regions may have unequal sizes. Every region remains connected through edges and has exactly one rabbit in the completed solution.
++- All rabbits start hidden. Exactly one starting region contains one box (within the approved 1–2 box range); its color is identified by the existing outline and a separate color swatch.
++- A correct rabbit placement automatically displays Xs in its row, column, all eight surrounding cells, and the other cells of its solved region. Rabbit and failed-carrot artwork take precedence over Xs.
++- Automatic eliminations are derived from the real rabbit placements. Manual pencil Xs remain separate, so Undo and Restart can restore the exact previous state.
++- Visible remaining-box counts exclude automatic Xs, manual Xs, rabbits, and failed-carrot cells. Manual marks are not evidence for a forced placement.
++- Generation constructs connected region membership around a calculated valid solution. It must replay a complete sequence of justified region singles using only visible eliminations, recording each region's counts before and after every rabbit. Every nonfinal placement must reduce another unsolved region's count. A two-box region is never treated as a forced choice.
++- Accepted puzzles have a verified complete solving certificate. Generation has a fixed attempt limit and runs in a worker in the live game; failure produces a retry message rather than an invalid board.
++- The shared engine supports 4×4, 6×6, 8×8, and 9×9 configurations. Current normal puzzles remain 4×4 with four rabbits; Daily Puzzle uses 9×9 with nine rabbits. No daily restrictions are introduced.
++- Hints use actual rabbit placements and a provable next move. A highlighted hint preview does not act as a placed rabbit.
+ 
+ Players should be able to mark cells manually where appropriate.
+ 
+@@ -64,7 +76,7 @@
+ 
+ - The main menu uses the Bunoku wordmark, a sound toggle, the unmodified `public/bunny/bunny-menu.svg` mascot centered with responsive `object-fit: contain`, a welcome heading, and Play, Daily Puzzle, How to Play, and Settings actions.
+ - The primary main-menu action is labeled “Let's Play!” and opens the game screen directly.
+-- Play opens the current game screen. Daily Puzzle is a placeholder and does not include daily puzzle logic.
++- Play opens the current normal game. Daily Puzzle opens a playable 9×9 prototype using the shared progressive engine, without attempt limits, midnight resets, or streaks.
+ - How to Play opens a four-rule visual tutorial. Its rules explain one rabbit per region, row and column, no touching in any direction, and the three-carrot mistake limit.
+ - The tutorial offers Let's Play! to open the game and Back to Menu to return.
+ - Settings provides a sound preference control. The sound toggle is shared across screens.
+--- before/src/App.tsx
++++ after/src/App.tsx
+@@ -4,7 +4,8 @@
+ import MainMenu from './components/MainMenu'
+ import './App.css'
+ import { playSound } from './audio'
+-import { createDailyPuzzle, type PuzzleDefinition } from './game/puzzle'
++import type { PuzzleDefinition } from './game/puzzle'
++import { createPuzzleAsync } from './game/puzzleClient'
+ 
+ type Screen = 'menu' | 'game' | 'daily' | 'daily-game' | 'daily-error' | 'tutorial'
+ 
+@@ -13,16 +14,33 @@
+   const [soundOn, setSoundOn] = useState(true)
+   const [settingsOpen, setSettingsOpen] = useState(false)
+   const [dailyPuzzle, setDailyPuzzle] = useState<PuzzleDefinition | null>(null)
++  const [normalPuzzle, setNormalPuzzle] = useState<PuzzleDefinition | null>(null)
++  const [errorIsDaily, setErrorIsDaily] = useState(true)
+   const [dailyError, setDailyError] = useState('')
+   const dailyStarting = useRef(false)
+-  const startDaily = () => {
++  const normalStarting = useRef(false)
++  const startNormal = async (entrySound = false) => {
++    if (normalStarting.current) return
++    normalStarting.current = true
++    if (entrySound && soundOn) playSound('entery')
++    try {
++      if (!normalPuzzle) setNormalPuzzle(await createPuzzleAsync(4, 1, false))
++      setScreen('game')
++    } catch (error) {
++      setErrorIsDaily(false)
++      setDailyError(error instanceof Error ? error.message : 'Please try opening the puzzle again.')
++      setScreen('daily-error')
++    } finally { normalStarting.current = false }
++  }
++  const startDaily = async () => {
+     if (dailyStarting.current) return
+     dailyStarting.current = true
+     try {
+-      setDailyPuzzle(createDailyPuzzle())
++      setDailyPuzzle(await createPuzzleAsync(9, 0, true))
+       setDailyError('')
+       setScreen('daily-game')
+     } catch (error) {
++      setErrorIsDaily(true)
+       setDailyError(error instanceof Error ? error.message : 'Please try opening the Daily Puzzle again.')
+       setScreen('daily-error')
+     } finally {
+@@ -32,11 +50,11 @@
+ 
+   return (
+     <>
+-      {screen === 'menu' && <MainMenu soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onPlay={() => { if (soundOn) playSound('entery'); setScreen('game') }} onDaily={startDaily} onTutorial={() => setScreen('tutorial')} onSettings={() => setSettingsOpen(true)} />}
+-      <div className="game-view" hidden={screen !== 'game'}><GameScreen soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onMenu={() => setScreen('menu')} /></div>
++      {screen === 'menu' && <MainMenu soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onPlay={() => { void startNormal(true) }} onDaily={startDaily} onTutorial={() => setScreen('tutorial')} onSettings={() => setSettingsOpen(true)} />}
++      {normalPuzzle && <div className="game-view" hidden={screen !== 'game'}><GameScreen soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onMenu={() => setScreen('menu')} initialPuzzle={normalPuzzle} /></div>}
+       {screen === 'daily-game' && dailyPuzzle && <GameScreen soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onMenu={() => setScreen('menu')} daily initialPuzzle={dailyPuzzle} />}
+-      {screen === 'daily-error' && <main className="simple-screen"><AppHeader soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} /><section className="placeholder-card"><h1>Daily Puzzle</h1><p>We couldn’t prepare today’s puzzle. Please try again.</p><button className="pill-button primary-button" onClick={startDaily}>Try Again</button><button className="text-button" onClick={() => setScreen('menu')}>Back to Menu</button><span className="sr-only">{dailyError}</span></section></main>}
+-      {screen === 'tutorial' && <HowToPlay soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onPlay={() => setScreen('game')} onBack={() => setScreen('menu')} />}
++      {screen === 'daily-error' && <main className="simple-screen"><AppHeader soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} /><section className="placeholder-card"><h1>{errorIsDaily ? 'Daily Puzzle' : 'Bunoku'}</h1><p>{dailyError || 'We couldn’t prepare the puzzle. Please try again.'}</p><button className="pill-button primary-button" onClick={() => { if (errorIsDaily) void startDaily(); else void startNormal() }}>Try Again</button><button className="text-button" onClick={() => setScreen('menu')}>Back to Menu</button></section></main>}
++      {screen === 'tutorial' && <HowToPlay soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onPlay={() => { void startNormal() }} onBack={() => setScreen('menu')} />}
+       {screen === 'daily' && <DailyPlaceholder soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onBack={() => setScreen('menu')} onPlay={() => setScreen('daily-game')} />}
+       {settingsOpen && <SettingsDialog soundOn={soundOn} onToggleSound={() => setSoundOn((on) => !on)} onClose={() => setSettingsOpen(false)} />}
+     </>
+--- before/src/App.css
++++ after/src/App.css
+@@ -58,6 +58,8 @@
+ .cell.hint-target { position: relative; z-index: 2; animation: hint-pulse 1.05s ease-in-out infinite alternate; outline: 3px solid #E8C65A; outline-offset: -3px; box-shadow: inset 0 0 0 2px var(--cream), 0 0 0 2px #E8C65A, 0 0 13px 4px rgb(232 198 90 / 68%); }
+ @keyframes hint-pulse { to { filter: brightness(1.08); box-shadow: inset 0 0 0 2px var(--cream), 0 0 0 3px #E8C65A, 0 0 17px 6px rgb(232 198 90 / 78%); } }
+ .game-feedback { min-height: 18px; color: var(--forest); text-align: center; font-size: 12px; font-weight: 700; }
++.starting-color { display: inline-flex; align-items: center; gap: 7px; }
++.starting-color-swatch { width: 14px; height: 14px; border: 1px solid var(--forest); border-radius: 5px; }
+ .game-result { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+ .game-result img { width: 86px; height: 86px; object-fit: contain; }
+ .game-result h1 { margin: 0; color: var(--forest); font-size: 27px; }
+--- before/src/components/GameScreen.tsx
++++ after/src/components/GameScreen.tsx
+@@ -1,8 +1,9 @@
+ import { useEffect, useRef, useState } from 'react'
+ import type { CSSProperties } from 'react'
+ import type { PointerEvent as ReactPointerEvent } from 'react'
+-import { attemptPlacement, createInitialState, createPuzzle, createDailyPuzzle, findHint, isComplete } from '../game/puzzle'
+-import type { BoardState, CellState } from '../game/puzzle'
++import { attemptPlacement, automaticEliminations, createInitialState, findHint, isComplete } from '../game/puzzle'
++import type { BoardState, CellState, PuzzleDefinition } from '../game/puzzle'
++import { createPuzzleAsync } from '../game/puzzleClient'
+ import { playSound } from '../audio'
+ 
+ function Header({ soundOn, onToggleSound, onMenu }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void }) {
+@@ -19,13 +20,16 @@
+ type FailedCellAnimation = { id: number; index: number }
+ type Celebration = { id: number; index: number; text: string }
+ 
+-function PuzzleBoard({ puzzle, cells, onPointerStart, onPointerEnter, onPointerMove, onPointerEnd, onDoubleClick, hintCell, failures, celebrations, onCelebrationEnd }: { puzzle: ReturnType<typeof createPuzzle>; cells: CellState[]; onPointerStart: (index: number, event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerEnter: (index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void; onPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void; onDoubleClick: (index: number) => void; hintCell: number | null; failures: FailedCellAnimation[]; celebrations: Celebration[]; onCelebrationEnd: (id: number) => void }) {
++function PuzzleBoard({ puzzle, cells, onPointerStart, onPointerEnter, onPointerMove, onPointerEnd, onDoubleClick, hintCell, failures, celebrations, onCelebrationEnd }: { puzzle: PuzzleDefinition; cells: CellState[]; onPointerStart: (index: number, event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerEnter: (index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void; onPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void; onDoubleClick: (index: number) => void; hintCell: number | null; failures: FailedCellAnimation[]; celebrations: Celebration[]; onCelebrationEnd: (id: number) => void }) {
+   const size = puzzle.size
++  const automaticXs = automaticEliminations(puzzle, cells)
+   return <div className="board" role="grid" aria-label={`${size} by ${size} puzzle board`} style={{ '--board-size': size } as CSSProperties} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onPointerLeave={(event) => { if (event.buttons === 0) onPointerEnd(event) }}>{cells.map((cell, index) => {
+     const row = Math.floor(index / size)
+     const region = puzzle.regions[index]
+     const active = region === puzzle.startRegion
+-    return <button key={index} type="button" role="gridcell" data-cell-index={index} className={`cell region-${region} ${active ? 'region-start' : ''} ${cell !== 'empty' ? `cell-${cell}` : ''} ${hintCell === index ? 'hint-target' : ''}`} style={{ '--region-color': puzzle.regionColors[region] } as CSSProperties} aria-label={`Row ${row + 1}, column ${index % size + 1}${puzzle.given === index ? ', given rabbit' : cell === 'mark' ? ', marked' : cell === 'rabbit' || cell === 'hint' || cell === 'given' ? ', rabbit' : failures.some((failure) => failure.index === index) ? ', failed' : ''}`} onPointerDown={(event) => onPointerStart(index, event)} onPointerEnter={() => onPointerEnter(index)} onDoubleClick={() => onDoubleClick(index)} disabled={puzzle.given === index || cell === 'given' || failures.some((failure) => failure.index === index)}>{cell === 'rabbit' || cell === 'given' || cell === 'hint' ? <img src="/bunny/bunny.svg" alt=""/> : cell === 'mark' ? <span className="cell-x">×</span> : null}{failures.filter((failure) => failure.index === index).map((failure) => <span className="failed-cell-bite" key={failure.id} aria-hidden="true"><img className="bite-whole" src="/bunny/carrot.svg" alt=""/><img className="bite-eaten" src="/bunny/carrot-life-eaten.svg" alt=""/></span>)}{celebrations.filter((celebration) => celebration.index === index).map((celebration) => <span className="bunny-celebration" key={celebration.id} onAnimationEnd={() => onCelebrationEnd(celebration.id)}>{celebration.text}</span>)}</button>
++    const failed = failures.some((failure) => failure.index === index)
++    const marked = !failed && (cell === 'mark' || automaticXs[index])
++    return <button key={index} type="button" role="gridcell" data-cell-index={index} data-region-id={region} className={`cell region-${region} ${active ? 'region-start' : ''} ${cell !== 'empty' ? `cell-${cell}` : ''} ${hintCell === index ? 'hint-target' : ''}`} style={{ '--region-color': puzzle.regionColors[region] } as CSSProperties} aria-label={`Row ${row + 1}, column ${index % size + 1}${puzzle.given === index ? ', given rabbit' : failed ? ', failed' : automaticXs[index] ? ', automatically eliminated' : cell === 'mark' ? ', marked' : cell === 'rabbit' || cell === 'hint' || cell === 'given' ? ', rabbit' : ''}`} onPointerDown={(event) => onPointerStart(index, event)} onPointerEnter={() => onPointerEnter(index)} onDoubleClick={() => onDoubleClick(index)} disabled={puzzle.given === index || cell === 'given' || failed || automaticXs[index]}>{cell === 'rabbit' || cell === 'given' || cell === 'hint' ? <img src="/bunny/bunny.svg" alt=""/> : marked ? <span className="cell-x">×</span> : null}{failures.filter((failure) => failure.index === index).map((failure) => <span className="failed-cell-bite" key={failure.id} aria-hidden="true"><img className="bite-whole" src="/bunny/carrot.svg" alt=""/><img className="bite-eaten" src="/bunny/carrot-life-eaten.svg" alt=""/></span>)}{celebrations.filter((celebration) => celebration.index === index).map((celebration) => <span className="bunny-celebration" key={celebration.id} onAnimationEnd={() => onCelebrationEnd(celebration.id)}>{celebration.text}</span>)}</button>
+   })}</div>
+ }
+ 
+@@ -38,8 +42,8 @@
+   return <nav className="controls" aria-label="Puzzle controls"><button className="control-button" onClick={onHint}><ControlIcon name="hint"/><span>Hint</span></button><button className="control-button" onClick={onUndo} disabled={!canUndo}><ControlIcon name="undo"/><span>Undo</span></button><button className="control-button" onClick={onRestart}><ControlIcon name="restart"/><span>Restart</span></button></nav>
+ }
+ 
+-export default function GameScreen({ soundOn, onToggleSound, onMenu, daily = false, initialPuzzle }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void; daily?: boolean; initialPuzzle?: ReturnType<typeof createPuzzle> }) {
+-  const [puzzle, setPuzzle] = useState(() => initialPuzzle ?? (daily ? createDailyPuzzle() : createPuzzle(1)))
++export default function GameScreen({ soundOn, onToggleSound, onMenu, daily = false, initialPuzzle }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void; daily?: boolean; initialPuzzle: PuzzleDefinition }) {
++  const [puzzle, setPuzzle] = useState(initialPuzzle)
+   const [board, setBoard] = useState<BoardState>(() => createInitialState(puzzle))
+   const [history, setHistory] = useState<BoardState[]>([])
+   const [failureHistory, setFailureHistory] = useState<FailedCellAnimation[][]>([])
+@@ -56,6 +60,9 @@
+   const failureAudios = useRef<Set<HTMLAudioElement>>(new Set())
+   const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+   const [endScreenReady, setEndScreenReady] = useState(false)
++  const [preparingPuzzle, setPreparingPuzzle] = useState(false)
++  const [generationError, setGenerationError] = useState('')
++  const generationAbort = useRef<AbortController | null>(null)
+   const level = puzzle.level
+   const completed = isComplete(puzzle, board.cells)
+   const gameOver = board.lives === 0
+@@ -64,6 +71,7 @@
+     failureTimers.current.forEach(clearTimeout)
+     failureAudios.current.forEach((audio) => { audio.pause(); audio.src = '' })
+     if (endTimer.current) clearTimeout(endTimer.current)
++    generationAbort.current?.abort()
+   }, [])
+ 
+   const triggerFailureFeedback = (index: number) => {
+@@ -82,6 +90,7 @@
+   const commit = (next: BoardState) => { setHistory((items) => [...items, board]); setFailureHistory((items) => [...items, [...failures]]); setBoard(next); setHintCell(null); setNotice('') }
+   const placeRabbit = (index: number) => {
+     if (endTimer.current) return
++    if (automaticEliminations(puzzle, board.cells)[index]) return
+     if (failures.some((failure) => failure.index === index)) return
+     if (board.cells[index] === 'given' || board.cells[index] === 'rabbit' || board.cells[index] === 'hint' || gameOver || completed) return
+     const result = attemptPlacement(puzzle, board, index)
+@@ -111,6 +120,7 @@
+   }
+   const markCell = (index: number, drawingAcross = false) => {
+     if (endTimer.current) return
++    if (automaticEliminations(puzzle, board.cells)[index]) return
+     if (failures.some((failure) => failure.index === index)) return
+     if (gameOver || completed || board.cells[index] === 'given' || board.cells[index] === 'rabbit' || board.cells[index] === 'hint') return
+     if (drawingAcross && board.cells[index] !== 'empty') return
+@@ -162,10 +172,24 @@
+   const onRestart = () => {
+     if (endTimer.current) return
+     if (!window.confirm('Restart this puzzle? Your rabbits and marks will be cleared.')) return
+-    setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); drawing.current = null
++    setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); drawing.current = null
+   }
+   const startOver = () => { if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
+-  const nextPuzzle = () => { const next = daily ? createDailyPuzzle() : createPuzzle(level + 1); setEndScreenReady(false); setPuzzle(next); setBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([]) }
++  const nextPuzzle = async () => {
++    if (generationAbort.current) return
++    const controller = new AbortController()
++    generationAbort.current = controller
++    setPreparingPuzzle(true); setGenerationError('')
++    try {
++      const next = await createPuzzleAsync(daily ? 9 : 4, daily ? 0 : level + 1, daily, controller.signal)
++      if (controller.signal.aborted) return
++      setEndScreenReady(false); setPuzzle(next); setBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([])
++    } catch (error) {
++      if (!controller.signal.aborted) setGenerationError(error instanceof Error ? error.message : 'Please try preparing the next puzzle again.')
++    } finally {
++      if (!controller.signal.aborted) { generationAbort.current = null; setPreparingPuzzle(false) }
++    }
++  }
+ 
+-  return <main className="game-shell" id="game"><Header soundOn={soundOn} onToggleSound={onToggleSound} onMenu={onMenu}/><div className={`game-content${(gameOver || completed) && endScreenReady ? ' game-ended' : ''}`}><LevelInfo level={level} rabbitCount={puzzle.rabbitCount} cells={board.cells} lives={board.lives} daily={daily}/>{gameOver && endScreenReady ? <section className="game-result"><div className="out-of-carrots-art" aria-hidden="true">{[0, 1, 2].map((carrot) => <img src="/bunny/carrot-life-eaten.svg" alt="" key={carrot}/>)}</div><h1>Out of Carrots</h1><p>Take a breath and give this puzzle another try.</p><p>Oh no, out of carrots!</p><button className="pill-button primary-button" onClick={startOver}>Restart</button><button className="text-button" onClick={onMenu}>Main Menu</button></section> : completed && endScreenReady ? <section className="game-result"><img src="/bunny/bunny.svg" alt=""/><h1>Puzzle Complete!</h1><p>You solved the Bunoku puzzle with {board.lives} carrots left.</p><button className="pill-button primary-button" onClick={nextPuzzle}>Next!</button><button className="text-button" onClick={onMenu}>Main Menu</button></section> : <><PuzzleBoard puzzle={puzzle} cells={board.cells} onPointerStart={onPointerStart} onPointerEnter={onPointerEnter} onPointerMove={onPointerMove} onPointerEnd={onPointerEnd} onDoubleClick={placeRabbit} hintCell={hintCell} failures={failures} celebrations={celebrations} onCelebrationEnd={(id) => setCelebrations((items) => items.filter((item) => item.id !== id))}/><div className="game-feedback" aria-live="polite">{notice}</div><BottomControls onHint={onHint} onUndo={onUndo} onRestart={onRestart} canUndo={history.length > 0}/></>}</div></main>
++  return <main className="game-shell" id="game"><Header soundOn={soundOn} onToggleSound={onToggleSound} onMenu={onMenu}/><div className={`game-content${(gameOver || completed) && endScreenReady ? ' game-ended' : ''}`}><LevelInfo level={level} rabbitCount={puzzle.rabbitCount} cells={board.cells} lives={board.lives} daily={daily}/>{gameOver && endScreenReady ? <section className="game-result"><div className="out-of-carrots-art" aria-hidden="true">{[0, 1, 2].map((carrot) => <img src="/bunny/carrot-life-eaten.svg" alt="" key={carrot}/>)}</div><h1>Out of Carrots</h1><p>Take a breath and give this puzzle another try.</p><p>Oh no, out of carrots!</p><button className="pill-button primary-button" onClick={startOver}>Restart</button><button className="text-button" onClick={onMenu}>Main Menu</button></section> : completed && endScreenReady ? <section className="game-result"><img src="/bunny/bunny.svg" alt=""/><h1>Puzzle Complete!</h1><p>You solved the Bunoku puzzle with {board.lives} carrots left.</p><button className="pill-button primary-button" onClick={nextPuzzle} disabled={preparingPuzzle}>Next!</button>{generationError && <p role="alert">{generationError}</p>}<button className="text-button" onClick={onMenu}>Main Menu</button></section> : <><PuzzleBoard puzzle={puzzle} cells={board.cells} onPointerStart={onPointerStart} onPointerEnter={onPointerEnter} onPointerMove={onPointerMove} onPointerEnd={onPointerEnd} onDoubleClick={placeRabbit} hintCell={hintCell} failures={failures} celebrations={celebrations} onCelebrationEnd={(id) => setCelebrations((items) => items.filter((item) => item.id !== id))}/><div className="game-feedback" aria-live="polite">{notice || (board.cells.every((cell) => cell !== 'rabbit' && cell !== 'given' && cell !== 'hint') ? <span className="starting-color">Start with this color <span className="starting-color-swatch" style={{ backgroundColor: puzzle.regionColors[puzzle.startRegion] }} aria-label="Outlined starting region" /></span> : '')}</div><BottomControls onHint={onHint} onUndo={onUndo} onRestart={onRestart} canUndo={history.length > 0}/></>}</div></main>
+ }
+--- before/src/game/puzzle.ts
++++ after/src/game/puzzle.ts
+@@ -1,3 +1,7 @@
++import { generateProgressivePuzzle } from './generator.ts'
++import { availableRegions, automaticEliminations, forcedVisibleMove, simulateProgression } from './progression.ts'
++import type { ProgressionStep } from './progression.ts'
++
+ export type CellState = 'empty' | 'mark' | 'rabbit' | 'given' | 'hint'
+ export type BoardState = { cells: CellState[]; lives: number }
+ export type PuzzleDefinition = {
+@@ -8,17 +12,13 @@
+   regionColors: string[]
+   solution: number[]
+   startRegion: number
+-  given: number
++  given?: number
+   daily?: boolean
++  progression?: ProgressionStep[]
+ }
+ export type DeductionMove = { cell: number; source: 'region' | 'row' | 'column'; unit: number }
+ export type DeductionReport = { solved: boolean; moves: DeductionMove[]; blockedRegions: { region: number; candidates: number[] }[] }
+ export type RankedRegionCandidates = { region: number; candidates: number[] }
+-
+-const NORMAL_COLORS = ['#D9C7A3', '#C8D5B9', '#E7D9D0', '#C9D8DF']
+-const DAILY_COLORS = ['#D9C7A3', '#C8D5B9', '#E7D9D0', '#C9D8DF', '#D8D0E5', '#E8DCA8', '#E7C8B5', '#BFD8CC', '#D4D0C4']
+-const NORMAL_REGIONS = [0,0,0,0, 1,1,1,1, 2,2,2,3, 2,3,3,3]
+-const NORMAL_SOLUTION = [1,7,8,14]
+ 
+ function canShareSolution(size: number, placed: number[], candidate: number): boolean {
+   const row = Math.floor(candidate / size), column = candidate % size
+@@ -69,196 +69,52 @@
+   if (!Number.isInteger(size) || size < 1 || !Number.isInteger(rabbitCount) || rabbitCount < 1 || rabbitCount > size || regions.length !== size * size) return false
+   const ids = [...new Set(regions)]
+   const regionCount = regionColors.length
+-  if (ids.length !== regionCount || ids.some((id) => !Number.isInteger(id) || id < 0 || id >= regionCount) || new Set(regionColors).size !== regionCount) return false
+-  if (size * size % regionCount !== 0 || ids.some((id) => regions.filter((region) => region === id).length !== size * size / regionCount)) return false
++  if (regionCount !== rabbitCount || ids.length !== regionCount || ids.some((id) => !Number.isInteger(id) || id < 0 || id >= regionCount) || new Set(regionColors).size !== regionCount) return false
+   if (!ids.every((id) => isConnectedRegion(size, regions, id))) return false
+   if (solution.length !== rabbitCount || new Set(solution).size !== rabbitCount || !solution.every((cell) => Number.isInteger(cell) && cell >= 0 && cell < size * size)) return false
+   for (let i = 0; i < solution.length; i += 1) if (!canAdd(size, regions, solution.slice(0, i), solution[i])) return false
+   if (new Set(solution.map((cell) => regions[cell])).size !== rabbitCount) return false
+-  if (!solution.includes(puzzle.given) || regions[puzzle.given] !== puzzle.startRegion) return false
++  if (!ids.includes(puzzle.startRegion)) return false
++  if (puzzle.given !== undefined && (!solution.includes(puzzle.given) || regions[puzzle.given] !== puzzle.startRegion)) return false
++  if (puzzle.given === undefined && regions.filter((id) => id === puzzle.startRegion).length > 2) return false
+   return true
+ }
+ 
+ export function getRegionCandidates(puzzle: PuzzleDefinition, cells: CellState[]): RankedRegionCandidates[] {
+-  const regionCount = puzzle.regionColors.length
+-  return Array.from({ length: regionCount }, (_, region) => ({
+-    region,
+-    candidates: puzzle.regions.flatMap((id, cell) => id === region && (cells[cell] === 'empty' || cells[cell] === 'mark') && isValidPlacement(puzzle, cells, cell) ? [cell] : []),
+-  })).filter(({ region }) => !cells.some((cell, index) => region === puzzle.regions[index] && (cell === 'rabbit' || cell === 'given' || cell === 'hint')))
++  return availableRegions(puzzle, cells, [], false).map(({ region, cells: candidates }) => ({ region, candidates }))
+ }
+ 
+ export function rankRegionCandidates(puzzle: PuzzleDefinition, cells: CellState[]): RankedRegionCandidates[] {
+-  return getRegionCandidates(puzzle, cells).sort((first, second) => first.candidates.length - second.candidates.length || first.region - second.region)
+-}
+-
+-type CompletionSearch = { found: boolean; complete: boolean }
+-
+-function hasValidCompletion(puzzle: PuzzleDefinition, cells: CellState[], nodeBudget: { remaining: number }): CompletionSearch {
+-  const state = [...cells]
+-  const search = (): CompletionSearch => {
+-    if (nodeBudget.remaining <= 0) return { found: false, complete: false }
+-    nodeBudget.remaining -= 1
+-    const placed = state.filter((cell) => cell === 'rabbit' || cell === 'given' || cell === 'hint').length
+-    if (placed === puzzle.rabbitCount) return { found: true, complete: true }
+-    const ranked = rankRegionCandidates(puzzle, state)
+-    if (!ranked.length || ranked[0].candidates.length === 0) return { found: false, complete: true }
+-    if (puzzle.rabbitCount === puzzle.regionColors.length && ranked.some(({ candidates }) => candidates.length === 0)) return { found: false, complete: true }
+-    const next = ranked.find(({ candidates }) => candidates.length > 0)
+-    if (!next) return { found: false, complete: true }
+-    for (const candidate of next.candidates) {
+-      state[candidate] = 'rabbit'
+-      const result = search()
+-      state[candidate] = cells[candidate]
+-      if (result.found || !result.complete) return result
+-    }
+-    return { found: false, complete: true }
+-  }
+-  return search()
++  return getRegionCandidates(puzzle, cells)
+ }
+ 
+ export function getForcedDeduction(puzzle: PuzzleDefinition, cells: CellState[]): DeductionMove | null {
+-  const regions = rankRegionCandidates(puzzle, cells)
+-  const forcedRegion = puzzle.rabbitCount === puzzle.regionColors.length
+-    ? regions.find(({ candidates }) => candidates.length === 1)
+-    : undefined
+-  if (forcedRegion) return { cell: forcedRegion.candidates[0], source: 'region', unit: forcedRegion.region }
+-  const placed = cells.flatMap((cell, index) => cell === 'rabbit' || cell === 'given' || cell === 'hint' ? [index] : [])
+-  for (const axis of ['row', 'column'] as const) for (let unit = 0; unit < puzzle.size; unit += 1) {
+-    const indices = Array.from({ length: puzzle.size * puzzle.size }, (_, index) => index).filter((index) => (axis === 'row' ? Math.floor(index / puzzle.size) : index % puzzle.size) === unit)
+-    if (indices.some((index) => placed.includes(index))) continue
+-    const candidates = indices.filter((index) => (cells[index] === 'empty' || cells[index] === 'mark') && isValidPlacement(puzzle, cells, index))
+-    if (candidates.length === 1) return { cell: candidates[0], source: axis, unit }
+-  }
+-
+-  if (puzzle.rabbitCount !== puzzle.regionColors.length) return null
+-  const remaining = { remaining: 2_000 }
+-  for (const region of regions.filter(({ candidates }) => candidates.length > 1)) {
+-    const supported: number[] = []
+-    for (const candidate of region.candidates) {
+-      const candidateState = [...cells]
+-      candidateState[candidate] = 'rabbit'
+-      const result = hasValidCompletion(puzzle, candidateState, remaining)
+-      if (!result.complete) return null
+-      if (result.found) supported.push(candidate)
+-      if (supported.length > 1) break
+-    }
+-    if (supported.length === 1) return { cell: supported[0], source: 'region', unit: region.region }
+-  }
+-  return null
++  const cell = forcedVisibleMove(puzzle, cells)
++  return cell === null ? null : { cell, source: 'region', unit: puzzle.regions[cell] }
+ }
+ 
+ export function solveByDeduction(puzzle: PuzzleDefinition): DeductionReport {
+-  const state = createInitialState(puzzle)
+-  const moves: DeductionMove[] = []
+-  const limit = puzzle.size * puzzle.rabbitCount
+-  while (moves.length < limit) {
+-    const placed = state.cells.filter((cell) => cell === 'rabbit' || cell === 'given' || cell === 'hint').length
+-    if (placed === puzzle.rabbitCount) return { solved: true, moves, blockedRegions: [] }
+-    const deduction = getForcedDeduction(puzzle, state.cells)
+-    if (!deduction) break
+-    state.cells[deduction.cell] = 'rabbit'
+-    moves.push(deduction)
+-  }
+-  return { solved: isComplete(puzzle, state.cells), moves, blockedRegions: getRegionCandidates(puzzle, state.cells) }
++  const replay = simulateProgression(puzzle)
++  return { solved: replay.solved, moves: replay.steps.map(({ cell, region }) => ({ cell, source: 'region', unit: region })), blockedRegions: replay.solved ? [] : getRegionCandidates(puzzle, replay.cells) }
+ }
+ 
+ export function createPuzzle(level = 1, random: () => number = Math.random): PuzzleDefinition {
+-  const startRegion = Math.min(3, Math.floor(random() * 4))
+-  const given = NORMAL_SOLUTION.find((cell) => NORMAL_REGIONS[cell] === startRegion)!
+-  const puzzle: PuzzleDefinition = { level, size: 4, rabbitCount: 4, regions: [...NORMAL_REGIONS], regionColors: NORMAL_COLORS, solution: [...NORMAL_SOLUTION], startRegion, given }
+-  if (!validatePuzzle(puzzle) || countSolutions(puzzle.regions, 2) !== 1) throw new Error('Unable to generate a valid unique Bunoku 4x4 puzzle')
++  const puzzle = generateProgressivePuzzle(4, level, false, random)
++  if (!validatePuzzle(puzzle)) throw new Error('Generated Bunoku puzzle failed validation')
+   return puzzle
+ }
+ 
+-function shuffled<T>(values: T[], random: () => number): T[] {
+-  const result = [...values]
+-  for (let i = result.length - 1; i > 0; i -= 1) { const j = Math.floor(random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]] }
+-  return result
++export function createDailyPuzzle(random: () => number = Math.random): PuzzleDefinition {
++  const puzzle = generateProgressivePuzzle(9, 0, true, random)
++  if (!validatePuzzle(puzzle)) throw new Error('Generated Daily Puzzle failed validation')
++  return puzzle
+ }
+ 
+-function generateRabbitSolution(regions: number[], random: () => number): number[] | null {
+-  const size = 9
+-  const placed: number[] = []
+-  let searchBudget = 1_000_000
+-  const search = (row: number): boolean => {
+-    if (--searchBudget < 0) return false
+-    if (row === size) return true
+-    for (const col of shuffled(Array.from({ length: size }, (_, index) => index), random)) {
+-      const cell = row * size + col
+-      if (!canAdd(size, regions, placed, cell)) continue
+-      placed.push(cell)
+-      if (search(row + 1)) return true
+-      placed.pop()
+-    }
+-    return false
+-  }
+-  return search(0) ? [...placed] : null
+-}
+-
+-function makeBlockRegions(): number[] {
+-  return Array.from({ length: 81 }, (_, index) => Math.floor(Math.floor(index / 9) / 3) * 3 + Math.floor((index % 9) / 3))
+-}
+-
+-function irregularizeRegions(regions: number[], solution: number[], random: () => number): number[] {
+-  const size = 9, result = [...regions]
+-  for (let accepted = 0, attempts = 0; accepted < 60 && attempts < 5000; attempts += 1) {
+-    const first = Math.floor(random() * 81)
+-    if (solution.includes(first)) continue
+-    const second = Math.floor(random() * 81)
+-    if (first === second || solution.includes(second) || result[second] === result[first]) continue
+-    const firstRegion = result[first], secondRegion = result[second]
+-    result[first] = secondRegion; result[second] = firstRegion
+-    if (isConnectedRegion(size, result, firstRegion) && isConnectedRegion(size, result, secondRegion)) accepted += 1
+-    else { result[first] = firstRegion; result[second] = secondRegion }
+-  }
+-  return result
+-}
+-
+-function chooseStartingClue(regions: number[], solution: number[], colors: string[]): number {
+-  let bestCell = solution[0]
+-  let bestScore = Number.POSITIVE_INFINITY
+-  for (const given of solution) {
+-    const puzzle: PuzzleDefinition = { level: 0, size: 9, rabbitCount: 9, regions, regionColors: colors, solution, startRegion: regions[given], given, daily: true }
+-    const counts = rankRegionCandidates(puzzle, createInitialState(puzzle).cells).map(({ candidates }) => candidates.length)
+-    const score = (counts[0] ?? 9) * 100 + counts.slice(1, 4).reduce((sum, count) => sum + Math.min(count, 9), 0)
+-    if (score < bestScore) { bestCell = given; bestScore = score }
+-  }
+-  return bestCell
+-}
+-
+-function transformCell(index: number, turns: number, reflect: boolean): number {
+-  let row = Math.floor(index / 9), col = index % 9
+-  if (reflect) col = 8 - col
+-  for (let turn = 0; turn < turns; turn += 1) [row, col] = [col, 8 - row]
+-  return row * 9 + col
+-}
+-
+-function transformBoard(regions: number[], solution: number[], turns: number, reflect: boolean): { regions: number[]; solution: number[] } {
+-  const transformed = Array(81).fill(0)
+-  regions.forEach((id, index) => { transformed[transformCell(index, turns, reflect)] = id })
+-  return { regions: transformed, solution: solution.map((cell) => transformCell(cell, turns, reflect)) }
+-}
+-
+-export function createDailyPuzzle(random: () => number = Math.random): PuzzleDefinition {
+-  for (let attempt = 0; attempt < 20; attempt += 1) {
+-    let regions = makeBlockRegions()
+-    const solution = generateRabbitSolution(regions, random)
+-    if (!solution) continue
+-    regions = irregularizeRegions(regions, solution, random)
+-    const colors = shuffled(DAILY_COLORS, random)
+-    const turns = Math.floor(random() * 4), reflect = random() < 0.5
+-    const transformed = transformBoard(regions, solution, turns, reflect)
+-    const given = chooseStartingClue(transformed.regions, transformed.solution, colors)
+-    const startRegion = transformed.regions[given]
+-    const puzzle: PuzzleDefinition = { level: 0, size: 9, rabbitCount: 9, regions: transformed.regions, regionColors: colors, solution: transformed.solution, startRegion, given, daily: true }
+-    if (validatePuzzle(puzzle)) return puzzle
+-  }
+-  throw new Error('Unable to generate a valid Bunoku 9x9 daily puzzle')
+-}
++export { automaticEliminations }
+ 
+ export function createInitialState(puzzle: PuzzleDefinition): BoardState {
+   const cells: CellState[] = Array(puzzle.size * puzzle.size).fill('empty')
+-  cells[puzzle.given] = 'given'
++  if (puzzle.given !== undefined) cells[puzzle.given] = 'given'
+   return { cells, lives: 3 }
+ }
+ 
+@@ -280,7 +136,6 @@
+   return placed.length === puzzle.rabbitCount && placed.every((index, i) => placed.slice(i + 1).every((other) => canAdd(puzzle.size, puzzle.regions, [index], other)))
+ }
+ export function findHint(puzzle: PuzzleDefinition, cells: CellState[], excluded: number[] = []): number | null {
+-  const deductions = [...cells]
+-  for (const index of excluded) if (isValidPlacement(puzzle, deductions, index)) deductions[index] = 'rabbit'
+-  return getForcedDeduction(puzzle, deductions)?.cell ?? null
++  // A preview is not a placed rabbit. Recalculate only from the real board.
++  return forcedVisibleMove(puzzle, cells, excluded) ?? forcedVisibleMove(puzzle, cells)
+ }
+--- before/tests/puzzle.test.mjs
++++ after/tests/puzzle.test.mjs
+@@ -1,72 +1,71 @@
+ import assert from 'node:assert/strict'
+ import test from 'node:test'
+-import { attemptPlacement, createInitialState, createPuzzle, countSolutions, isComplete, isSolutionPlacement, isValidPlacement } from '../src/game/puzzle.ts'
++import { attemptPlacement, automaticEliminations, createInitialState, createPuzzle, createDailyPuzzle, countSolutions, findHint, isComplete, validatePuzzle } from '../src/game/puzzle.ts'
++import { availableRegions } from '../src/game/progression.ts'
+ 
+-function assertConnected(puzzle) {
+-  const ids = [...new Set(puzzle.regions)]
+-  assert.equal(ids.length, 4)
+-  for (const id of ids) {
+-    const members = puzzle.regions.flatMap((region, i) => region === id ? [i] : [])
+-    assert.equal(members.length, 4)
+-    const seen = new Set([members[0]])
+-    const queue = [members[0]]
+-    while (queue.length) {
+-      const at = queue.pop()
+-      for (const next of members) {
+-        const distance = Math.abs(Math.floor(at / 4) - Math.floor(next / 4)) + Math.abs(at % 4 - next % 4)
+-        if (distance === 1 && !seen.has(next)) { seen.add(next); queue.push(next) }
+-      }
+-    }
+-    assert.equal(seen.size, 4)
+-  }
++function seeded(seed) {
++  return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
+ }
+ 
+-test('generated 4x4 puzzle has a connected four-color layout and one unique complete solution', () => {
+-  const puzzle = createPuzzle(1, () => 0.6)
+-  assertConnected(puzzle)
+-  assert.equal(puzzle.regionColors.length, 4)
+-  assert.equal(new Set(puzzle.regionColors).size, 4)
+-  assert.equal(puzzle.solution.length, 4)
+-  assert.equal(countSolutions(puzzle.regions), 1)
+-  assert.equal(puzzle.solution.includes(puzzle.given), true)
+-  assert.equal(puzzle.regions[puzzle.given], puzzle.startRegion)
+-  const initial = createInitialState(puzzle)
+-  assert.equal(initial.cells.filter((cell) => cell === 'given').length, 1)
+-  assert.equal(initial.cells.filter((cell) => cell === 'rabbit' || cell === 'hint').length, 0)
++for (const [name, create] of [['normal', () => createPuzzle(1, seeded(71))], ['daily', () => createDailyPuzzle(seeded(83))]]) {
++  test(`${name}: real game adapter starts hidden and finishes using real hints and placements`, () => {
++    const puzzle = create()
++    assert(validatePuzzle(puzzle))
++    assert.equal(puzzle.given, undefined)
++    assert.equal(countSolutions(puzzle.regions, 2), 1)
++    let state = createInitialState(puzzle)
++    assert(state.cells.every((cell) => cell === 'empty'))
++    assert.equal(state.lives, 3)
++    assert.equal(automaticEliminations(puzzle, state.cells).filter(Boolean).length, 0)
++    const initialHint = findHint(puzzle, state.cells)
++    assert.equal(puzzle.regions[initialHint], puzzle.startRegion)
++    for (let turn = 0; turn < puzzle.rabbitCount; turn++) {
++      const snapshot = structuredClone(state)
++      const index = findHint(puzzle, state.cells)
++      assert.notEqual(index, null)
++      assert(availableRegions(puzzle, state.cells, [], false).some((region) => region.cells.length === 1 && region.cells[0] === index))
++      const repeatedPreview = findHint(puzzle, state.cells, [index])
++      assert(availableRegions(puzzle, state.cells, [], false).some((region) => region.cells.length === 1 && region.cells[0] === repeatedPreview))
++      assert.deepEqual(state, snapshot, 'hint previews never change actual game state')
++      state.cells[index] = 'mark'
++      assert.equal(findHint(puzzle, state.cells), index, 'a pencil X cannot hide a proved hint')
++      const before = structuredClone(state)
++      const result = attemptPlacement(puzzle, state, index)
++      assert(result.accepted)
++      assert.equal(result.state.lives, 3)
++      assert(automaticEliminations(puzzle, result.state.cells).some(Boolean))
++      assert.deepEqual(state, before, 'placement never mutates history snapshots')
++      assert.equal(automaticEliminations(puzzle, before.cells)[index], false)
++      state = result.state
++    }
++    assert(isComplete(puzzle, state.cells))
++    assert.equal(findHint(puzzle, state.cells), null)
++    const restarted = createInitialState(puzzle)
++    assert(restarted.cells.every((cell) => cell === 'empty'))
++    assert.equal(automaticEliminations(puzzle, restarted.cells).filter(Boolean).length, 0)
++  })
++}
+ 
+-  const solved = [...initial.cells]
+-  for (const index of puzzle.solution) {
+-    if (index === puzzle.given) continue
+-    assert.equal(isSolutionPlacement(puzzle, index), true)
+-    assert.equal(isValidPlacement(puzzle, solved, index), true)
+-    solved[index] = 'rabbit'
+-  }
+-  assert.equal(isComplete(puzzle, solved), true)
+-
+-  const validWrongAlternatives = Array.from({ length: 16 }, (_, index) => index)
+-    .filter((index) => !puzzle.solution.includes(index) && isValidPlacement(puzzle, initial.cells, index))
+-  assert(validWrongAlternatives.length > 0, 'there is a locally safe but incorrect move to reject')
+-  assert.equal(isSolutionPlacement(puzzle, validWrongAlternatives[0]), false)
+-  const acceptedMove = puzzle.solution.find((index) => index !== puzzle.given)
+-  const correctResult = attemptPlacement(puzzle, initial, acceptedMove)
+-  assert.equal(correctResult.accepted, true)
+-  assert.equal(correctResult.state.cells[acceptedMove], 'rabbit')
+-  assert.equal(correctResult.state.lives, 3)
+-  const wrongResult = attemptPlacement(puzzle, initial, validWrongAlternatives[0])
+-  assert.equal(wrongResult.accepted, false)
+-  assert.equal(wrongResult.mistake, true)
+-  assert.equal(wrongResult.state.lives, 2)
+-  assert.equal(wrongResult.state.cells.filter((cell) => cell === 'rabbit').length, 0)
+-  console.log(JSON.stringify({
+-    regionLayout: Array.from({ length: 4 }, (_, row) => puzzle.regions.slice(row * 4, row * 4 + 4)),
+-    regionIds: [...new Set(puzzle.regions)],
+-    colors: puzzle.regionColors,
+-    solutionCoordinates: puzzle.solution.map((index) => [Math.floor(index / 4) + 1, index % 4 + 1]),
+-    startingRabbit: [Math.floor(puzzle.given / 4) + 1, puzzle.given % 4 + 1],
+-    validSolutionCount: countSolutions(puzzle.regions),
+-    locallySafeIncorrectMove: [Math.floor(validWrongAlternatives[0] / 4) + 1, validWrongAlternatives[0] % 4 + 1],
+-    allRulesPass: isComplete(puzzle, solved),
+-    correctSelectionAccepted: correctResult.accepted,
+-    incorrectSelectionRejected: !wrongResult.accepted && wrongResult.state.lives === 2,
+-  }, null, 2))
++test('mistakes retain life semantics; history restores manual marks and derived eliminations', () => {
++  const puzzle = createPuzzle(1, seeded(95))
++  const state = createInitialState(puzzle)
++  const wrong = state.cells.findIndex((_, cell) => !puzzle.solution.includes(cell))
++  state.cells[wrong] = 'mark'
++  const history = structuredClone(state)
++  const failed = attemptPlacement(puzzle, state, wrong)
++  assert(failed.mistake)
++  assert.equal(failed.state.lives, 2)
++  assert.equal(failed.accepted, false)
++  assert.deepEqual(state, history)
++  assert.deepEqual(automaticEliminations(puzzle, history.cells), Array(16).fill(false))
++  const first = findHint(puzzle, history.cells)
++  const placed = attemptPlacement(puzzle, history, first)
++  assert(placed.accepted)
++  assert(automaticEliminations(puzzle, placed.state.cells).some(Boolean))
++  assert.equal(history.cells[wrong], 'mark')
++  assert.deepEqual(automaticEliminations(puzzle, history.cells), Array(16).fill(false), 'Undo restores manual state and removes rabbit-derived Xs')
++  let losing = state
++  for (let mistake = 0; mistake < 3; mistake++) losing = attemptPlacement(puzzle, losing, wrong).state
++  assert.equal(losing.lives, 0)
++  assert.equal(losing.cells.filter((cell) => cell === 'rabbit').length, 0)
+ })
+--- /dev/null
++++ after/src/game/generator.ts
+@@ -0,0 +1,140 @@
++import { conflicts, simulateProgression } from './progression.ts'
++import type { ProgressionStep } from './progression.ts'
++
++const COLORS = ['#D9C7A3', '#C8D5B9', '#E7D9D0', '#C9D8DF', '#D8D0E5', '#E8DCA8', '#E7C8B5', '#BFD8CC', '#D4D0C4']
++export type GeneratedPuzzle = {
++  level: number; size: number; rabbitCount: number; regions: number[]; regionColors: string[]
++  solution: number[]; startRegion: number; daily: boolean; progression: ProgressionStep[]
++}
++
++function shuffled<T>(values: T[], random: () => number): T[] {
++  const result = [...values]
++  for (let i = result.length - 1; i > 0; i -= 1) { const j = Math.floor(random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]] }
++  return result
++}
++
++function neighbors(size: number, cell: number): number[] {
++  const row = Math.floor(cell / size), col = cell % size
++  return [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]]
++    .filter(([r, c]) => r >= 0 && r < size && c >= 0 && c < size).map(([r, c]) => r * size + c)
++}
++
++function connected(size: number, cells: Set<number>): boolean {
++  const first = cells.values().next().value
++  if (first === undefined) return false
++  const seen = new Set([first]), queue = [first]
++  while (queue.length) for (const cell of neighbors(size, queue.pop()!)) if (cells.has(cell) && !seen.has(cell)) { seen.add(cell); queue.push(cell) }
++  return seen.size === cells.size
++}
++
++function irregular(size: number, cells: number[]): boolean {
++  if (cells.length <= 2) return false
++  const rows = cells.map((cell) => Math.floor(cell / size)), cols = cells.map((cell) => cell % size)
++  const height = Math.max(...rows) - Math.min(...rows) + 1, width = Math.max(...cols) - Math.min(...cols) + 1
++  return height > 1 && width > 1 && height * width !== cells.length
++}
++
++function rabbitSolution(size: number, random: () => number): number[] | null {
++  const placed: number[] = []
++  let budget = 10_000
++  const search = (row: number): boolean => {
++    if (--budget < 0) return false
++    if (row === size) return true
++    for (const col of shuffled(Array.from({ length: size }, (_, id) => id), random)) {
++      const cell = row * size + col
++      if (placed.some((other) => conflicts(size, cell, other))) continue
++      placed.push(cell)
++      if (search(row + 1)) return true
++      placed.pop()
++    }
++    return false
++  }
++  return search(0) ? placed : null
++}
++
++// Carve connected regions while preserving a connected remainder. Every filler in
++// region k is already eliminated by rabbits 0..k-1, so its rabbit becomes forced.
++function carveRegions(size: number, solution: number[], random: () => number): number[] | null {
++  const remaining = new Set(Array.from({ length: size * size }, (_, cell) => cell))
++  const regions = Array(size * size).fill(-1) as number[]
++  const targets = new Set(solution)
++  const anchors = solution.map((cell, stage) => stage === 0 ? -1 : cell - size)
++  for (let stage = 0; stage < size - 1; stage += 1) {
++    const group = [solution[stage]]
++    if (stage > 0) group.push(anchors[stage])
++    if (group.some((cell) => !remaining.has(cell))) return null
++    group.forEach((cell) => remaining.delete(cell))
++    const protectedAnchors = new Set(anchors.slice(stage + 1))
++    const prior = solution.slice(0, stage)
++    const absorbOrphans = (): boolean => {
++      const unseen = new Set(remaining), components: number[][] = []
++      while (unseen.size) {
++        const first = unseen.values().next().value!
++        const component = [first], queue = [first]
++        unseen.delete(first)
++        while (queue.length) for (const cell of neighbors(size, queue.pop()!)) if (unseen.delete(cell)) { component.push(cell); queue.push(cell) }
++        components.push(component)
++      }
++      if (components.length === 1) return true
++      if (stage === 0) return false
++      const future = solution.slice(stage + 1)
++      const main = components.find((component) => future.every((cell) => component.includes(cell)))
++      if (!main) return false
++      const orphans = components.filter((component) => component !== main).flat()
++      if (orphans.some((cell) => targets.has(cell) || protectedAnchors.has(cell) || !prior.some((rabbit) => conflicts(size, rabbit, cell)))) return false
++      orphans.forEach((cell) => { remaining.delete(cell); group.push(cell) })
++      return true
++    }
++    if (!absorbOrphans()) return null
++    if (stage > 0) {
++      const desired = 3 + Math.floor(random() * Math.max(1, size - 1))
++      while (group.length < desired && remaining.size > 3 * (size - stage - 1)) {
++        const frontier = shuffled([...new Set(group.flatMap((cell) => neighbors(size, cell)))], random)
++        let added = false
++        for (const cell of frontier) {
++          if (!remaining.has(cell) || targets.has(cell) || protectedAnchors.has(cell) || !prior.some((rabbit) => conflicts(size, rabbit, cell))) continue
++          const snapshot = new Set(remaining), groupLength = group.length
++          remaining.delete(cell)
++          group.push(cell)
++          if (!absorbOrphans() || remaining.size < 3 * (size - stage - 1)) {
++            remaining.clear(); snapshot.forEach((saved) => remaining.add(saved)); group.length = groupLength; continue
++          }
++          added = true; break
++        }
++        if (!added) break
++      }
++      if (!irregular(size, group)) return null
++    }
++    group.forEach((cell) => { regions[cell] = stage })
++  }
++  const last = [...remaining]
++  if (!irregular(size, last) || !connected(size, remaining) || !last.includes(solution[size - 1])) return null
++  last.forEach((cell) => { regions[cell] = size - 1 })
++  return regions
++}
++
++export function generateProgressivePuzzle(size: number, level = 1, daily = false, random: () => number = Math.random): GeneratedPuzzle {
++  if (![4, 6, 8, 9].includes(size)) throw new Error('Unsupported Bunoku board size')
++  for (let attempt = 0; attempt < 256; attempt += 1) {
++    const solution = rabbitSolution(size, random)
++    if (!solution) continue
++    const regions = carveRegions(size, solution, random)
++    if (!regions) continue
++    const turns = Math.floor(random() * 4), reflect = random() < 0.5
++    const transform = (cell: number) => {
++      let row = Math.floor(cell / size), col = cell % size
++      if (reflect) col = size - 1 - col
++      for (let turn = 0; turn < turns; turn += 1) [row, col] = [col, size - 1 - row]
++      return row * size + col
++    }
++    const ids = shuffled(Array.from({ length: size }, (_, id) => id), random)
++    const layout = Array(size * size).fill(-1) as number[]
++    regions.forEach((region, cell) => { layout[transform(cell)] = ids[region] })
++    const puzzle = { level, size, rabbitCount: size, regions: layout, regionColors: shuffled(COLORS, random).slice(0, size), solution: solution.map(transform), startRegion: ids[0], daily }
++    const replay = simulateProgression(puzzle)
++    if (!replay.solved || replay.steps.some((step) => !puzzle.solution.includes(step.cell))) continue
++    if (replay.steps.slice(0, -1).some((step) => step.affectedRegions.length === 0)) continue
++    return { ...puzzle, progression: replay.steps }
++  }
++  throw new Error('We couldn’t prepare a puzzle with a complete logical progression. Please try again.')
++}
+--- /dev/null
++++ after/src/game/progression.ts
+@@ -0,0 +1,75 @@
++import type { CellState } from './puzzle'
++
++export type RegionBoard = { size: number; rabbitCount: number; regions: number[] }
++export type RegionAvailability = { region: number; cells: number[] }
++export type ProgressionStep = {
++  cell: number
++  region: number
++  before: (number | null)[]
++  after: (number | null)[]
++  affectedRegions: number[]
++  reason: 'only-remaining-box'
++}
++
++export const hasRabbit = (cell: CellState) => cell === 'rabbit' || cell === 'given' || cell === 'hint'
++
++export function conflicts(size: number, first: number, second: number): boolean {
++  const row = Math.floor(first / size), column = first % size
++  const otherRow = Math.floor(second / size), otherColumn = second % size
++  return row === otherRow || column === otherColumn || (Math.abs(row - otherRow) <= 1 && Math.abs(column - otherColumn) <= 1)
++}
++
++// Derived from rabbits, never from the hidden solution or the player's pencil marks.
++export function automaticEliminations(board: RegionBoard, cells: CellState[]): boolean[] {
++  const rabbits = cells.flatMap((cell, index) => hasRabbit(cell) ? [index] : [])
++  const filledRegions = new Set(rabbits.map((cell) => board.regions[cell]))
++  return cells.map((cell, index) => !hasRabbit(cell) && (filledRegions.has(board.regions[index]) || rabbits.some((rabbit) => conflicts(board.size, rabbit, index))))
++}
++
++export function availableRegions(board: RegionBoard, cells: CellState[], failed: number[] = [], includeManualMarks = true): RegionAvailability[] {
++  const eliminated = automaticEliminations(board, cells)
++  const solved = new Set(cells.flatMap((cell, index) => hasRabbit(cell) ? [board.regions[index]] : []))
++  const failures = new Set(failed)
++  return [...new Set(board.regions)].filter((region) => !solved.has(region)).map((region) => ({
++    region,
++    cells: board.regions.flatMap((id, index) => id === region && !hasRabbit(cells[index]) && !eliminated[index] && !failures.has(index) && (!includeManualMarks || cells[index] !== 'mark') ? [index] : []),
++  })).sort((a, b) => a.cells.length - b.cells.length || a.region - b.region)
++}
++
++function counts(board: RegionBoard, cells: CellState[]): (number | null)[] {
++  const result: (number | null)[] = Array(board.rabbitCount).fill(null)
++  for (const region of availableRegions(board, cells)) result[region.region] = region.cells.length
++  return result
++}
++
++// A singleton is a proof under one-rabbit-per-region. No two-cell guesses or search.
++export function forcedVisibleMove(board: RegionBoard, cells: CellState[], excluded: number[] = []): number | null {
++  // Pencil marks cannot justify a rabbit; an accidentally marked solution is still hintable.
++  const forced = availableRegions(board, cells, [], false).filter((region) => region.cells.length === 1 && !excluded.includes(region.cells[0]))
++  let best: number | null = null, bestReduction = -1
++  for (const region of forced) {
++    const next = [...cells]
++    next[region.cells[0]] = 'rabbit'
++    const before = counts(board, cells), after = counts(board, next)
++    const reduction = before.reduce<number>((sum, count, id) => sum + (id !== region.region && count !== null && after[id] !== null ? count - after[id]! : 0), 0)
++    if (reduction > bestReduction) { best = region.cells[0]; bestReduction = reduction }
++  }
++  return best
++}
++
++export function simulateProgression(board: RegionBoard): { solved: boolean; steps: ProgressionStep[]; cells: CellState[] } {
++  const cells: CellState[] = Array(board.size * board.size).fill('empty')
++  const steps: ProgressionStep[] = []
++  for (let turn = 0; turn < board.rabbitCount; turn += 1) {
++    if (availableRegions(board, cells).some((region) => region.cells.length === 0)) break
++    const cell = forcedVisibleMove(board, cells)
++    if (cell === null) break
++    const before = counts(board, cells)
++    cells[cell] = 'rabbit'
++    const after = counts(board, cells)
++    const region = board.regions[cell]
++    const affectedRegions = before.flatMap((count, id) => id !== region && count !== null && after[id] !== null && after[id]! < count ? [id] : [])
++    steps.push({ cell, region, before, after, affectedRegions, reason: 'only-remaining-box' })
++  }
++  return { solved: steps.length === board.rabbitCount, steps, cells }
++}
+--- /dev/null
++++ after/src/game/puzzle.worker.ts
+@@ -0,0 +1,14 @@
++import { generateProgressivePuzzle } from './generator.ts'
++import { validatePuzzle } from './puzzle.ts'
++
++const worker = self as unknown as Pick<Worker, 'postMessage' | 'onmessage'>
++worker.onmessage = (event: MessageEvent<{ size: number; level: number; daily: boolean }>) => {
++  try {
++    const { size, level, daily } = event.data
++    const puzzle = generateProgressivePuzzle(size, level, daily)
++    if (!validatePuzzle(puzzle)) throw new Error('Puzzle validation failed')
++    worker.postMessage({ puzzle })
++  } catch (error) {
++    worker.postMessage({ error: error instanceof Error ? error.message : 'Unable to prepare a puzzle. Please try again.' })
++  }
++}
+--- /dev/null
++++ after/src/game/puzzleClient.ts
+@@ -0,0 +1,30 @@
++import { validatePuzzle } from './puzzle.ts'
++import type { PuzzleDefinition } from './puzzle.ts'
++
++export function createPuzzleAsync(size: number, level: number, daily: boolean, signal?: AbortSignal): Promise<PuzzleDefinition> {
++  return new Promise((resolve, reject) => {
++    const worker = new Worker(new URL('./puzzle.worker.ts', import.meta.url), { type: 'module' })
++    const timeout = setTimeout(() => finish(new Error('Preparing the puzzle took too long. Please try again.')), 5000)
++    const finish = (error?: Error, puzzle?: PuzzleDefinition) => {
++      clearTimeout(timeout)
++      signal?.removeEventListener('abort', abort)
++      worker.terminate()
++      if (error) reject(error)
++      else if (puzzle) resolve(puzzle)
++    }
++    const abort = () => finish(new Error('Puzzle generation cancelled'))
++    if (signal?.aborted) { abort(); return }
++    signal?.addEventListener('abort', abort, { once: true })
++    worker.onmessage = (event: MessageEvent<{ puzzle?: PuzzleDefinition; error?: string }>) => {
++      const { puzzle, error } = event.data
++      if (error) finish(new Error(error))
++      else if (!puzzle || !validatePuzzle(puzzle)) finish(new Error('We couldn’t validate this puzzle. Please try again.'))
++      else finish(undefined, puzzle)
++    }
++    worker.onerror = (event) => {
++      console.error('Bunoku puzzle worker failed:', event.message, event.filename, event.lineno)
++      finish(new Error('We couldn’t prepare the puzzle. Please try again.'))
++    }
++    worker.postMessage({ size, level, daily })
++  })
++}
+--- /dev/null
++++ after/tests/progression.test.mjs
+@@ -0,0 +1,103 @@
++import assert from 'node:assert/strict'
++import test from 'node:test'
++import { generateProgressivePuzzle } from '../src/game/generator.ts'
++import { availableRegions, automaticEliminations, simulateProgression } from '../src/game/progression.ts'
++
++export function seeded(seed) {
++  return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
++}
++
++function referenceBlocked(p, placed, cell) {
++  const row = Math.floor(cell / p.size), col = cell % p.size
++  return placed.some((other) => {
++    const r = Math.floor(other / p.size), c = other % p.size
++    return p.regions[cell] === p.regions[other] || row === r || col === c || (Math.abs(row - r) <= 1 && Math.abs(col - c) <= 1)
++  })
++}
++
++function assertConnected(p, id) {
++  const members = p.regions.flatMap((region, cell) => region === id ? [cell] : [])
++  const queue = [members[0]], visited = new Set(queue)
++  while (queue.length) {
++    const from = queue.pop()
++    for (const cell of members) if (!visited.has(cell) && Math.abs(Math.floor(from / p.size) - Math.floor(cell / p.size)) + Math.abs(from % p.size - cell % p.size) === 1) { visited.add(cell); queue.push(cell) }
++  }
++  assert.equal(visited.size, members.length)
++}
++
++// Independent enumeration by row, rather than replaying the generator's certificate.
++function independentSolutionCount(p) {
++  const singletons = p.regions.flatMap((id, cell) => p.regions.filter((other) => other === id).length === 1 ? [cell] : [])
++  const fixedRows = new Map(singletons.map((cell) => [Math.floor(cell / p.size), cell % p.size]))
++  let count = 0, nodes = 0
++  const usedCols = new Set(), usedRegions = new Set()
++  const search = (row, previousCol) => {
++    assert(++nodes < 1_000_000, 'independent validation stays bounded')
++    if (row === p.size) { count++; return }
++    const choices = fixedRows.has(row) ? [fixedRows.get(row)] : Array.from({ length: p.size }, (_, col) => col)
++    for (const col of choices) {
++      const region = p.regions[row * p.size + col]
++      if (usedCols.has(col) || usedRegions.has(region) || (row > 0 && Math.abs(previousCol - col) <= 1)) continue
++      usedCols.add(col); usedRegions.add(region)
++      search(row + 1, col)
++      usedCols.delete(col); usedRegions.delete(region)
++      if (count >= 2) return
++    }
++  }
++  search(0, -99)
++  return count
++}
++
++for (const size of [4, 6, 8, 9]) test(`${size}x${size}: 100 boards have complete, independently verified visible progressions`, () => {
++  const layouts = new Set(), solutions = new Set(), times = []
++  for (let seed = 1; seed <= 100; seed++) {
++    const start = performance.now()
++    const p = generateProgressivePuzzle(size, 1, size === 9, seeded(seed * 103 + size))
++    times.push(performance.now() - start)
++    layouts.add(p.regions.join(',')); solutions.add([...p.solution].sort((a, b) => a - b).join(','))
++    assert.equal(new Set(p.regions).size, size)
++    assert.equal(new Set(p.regionColors).size, size)
++    assert.equal(p.solution.length, size)
++    assert.equal(new Set(p.solution.map((cell) => Math.floor(cell / size))).size, size)
++    assert.equal(new Set(p.solution.map((cell) => cell % size)).size, size)
++    assert.equal(new Set(p.solution.map((cell) => p.regions[cell])).size, size)
++    for (let a = 0; a < size; a++) for (let b = a + 1; b < size; b++) {
++      assert(Math.abs(Math.floor(p.solution[a] / size) - Math.floor(p.solution[b] / size)) > 1 || Math.abs(p.solution[a] % size - p.solution[b] % size) > 1)
++    }
++    for (let id = 0; id < size; id++) assertConnected(p, id)
++    assert.equal(p.regions.filter((id) => id === p.startRegion).length, 1)
++    assert.equal(independentSolutionCount(p), 1)
++    const replay = simulateProgression(p)
++    assert(replay.solved)
++    assert.deepEqual(replay.steps, p.progression)
++    const placed = []
++    for (const step of replay.steps) {
++      const solved = new Set(placed.map((cell) => p.regions[cell]))
++      const counts = Array.from({ length: size }, (_, id) => solved.has(id) ? null : p.regions.filter((region, cell) => region === id && !referenceBlocked(p, placed, cell)).length)
++      assert.deepEqual(step.before, counts)
++      assert.equal(counts[step.region], 1)
++      assert(p.solution.includes(step.cell))
++      if (placed.length < size - 1) assert(step.affectedRegions.length > 0, 'every nonfinal placement helps another color')
++      placed.push(step.cell)
++    }
++    assert.deepEqual([...placed].sort((a, b) => a - b), [...p.solution].sort((a, b) => a - b))
++  }
++  assert(layouts.size >= 10, 'at least 10 genuinely different region memberships')
++  // Only two non-touching full rabbit permutations exist on a 4x4 board.
++  assert(solutions.size >= (size === 4 ? 2 : 10))
++  console.log(JSON.stringify({ size, boards: 100, distinctLayouts: layouts.size, distinctSolutions: solutions.size, maxMs: Math.round(Math.max(...times)), averageMs: Math.round(times.reduce((a, b) => a + b, 0) / times.length) }))
++})
++
++test('visible pencil counts are distinct from rule deductions and automatic Xs are reversible', () => {
++  const p = generateProgressivePuzzle(4, 1, false, seeded(27))
++  const cells = Array(16).fill('empty')
++  const first = p.progression[0].cell
++  assert.equal(automaticEliminations(p, cells).filter(Boolean).length, 0)
++  cells[first] = 'mark'
++  assert.equal(availableRegions(p, cells).find((region) => region.region === p.startRegion).cells.length, 0)
++  assert.equal(availableRegions(p, cells, [], false).find((region) => region.region === p.startRegion).cells.length, 1)
++  cells[first] = 'rabbit'
++  assert(automaticEliminations(p, cells).some(Boolean))
++  cells[first] = 'empty'
++  assert.equal(automaticEliminations(p, cells).filter(Boolean).length, 0)
++})

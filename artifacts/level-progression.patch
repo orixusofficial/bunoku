@@ -1,0 +1,304 @@
+--- before/PRD.md
++++ after/PRD.md
+@@ -38,7 +38,9 @@
+ - Logical remaining-box counts exclude internally eliminated cells regardless of visible Xs. Player availability also accounts for manual Xs, rabbits, and failed-carrot cells. Manual marks are not evidence for a forced placement.
+ - Generation constructs connected region membership around a calculated valid solution. It must replay a complete sequence of justified region singles using only visible eliminations, recording each region's counts before and after every rabbit. Every nonfinal placement must reduce another unsolved region's count. A two-box region is never treated as a forced choice.
+ - Accepted puzzles have a verified complete solving certificate. Generation has a fixed attempt limit and runs in a worker in the live game; failure produces a retry message rather than an invalid board.
+-- The shared engine supports 4×4, 6×6, 8×8, and 9×9 configurations. Current normal puzzles remain 4×4 with four rabbits; Daily Puzzle uses 9×9 with nine rabbits. No daily restrictions are introduced.
++- Normal Play uses level 1: 4×4; levels divisible by 10: 9×9; levels ending in 5: 8×8; all other levels: 6×6. There is one rabbit per region, row, and column. Daily Puzzle remains a separate 9×9 prototype.
++- Completing a normal puzzle unlocks and saves the next level in browser storage. Next opens that level; Restart reuses the current puzzle. Returning to Play resumes the mounted game, or the saved level after a reload. Storage failure does not block play.
++- Every ten levels the difficulty selection tier increases, up to four increases. Later tiers select from more verified layouts using a score for fewer simultaneous forced colors, remaining-box ambiguity, and region boundary complexity. This increases selection pressure within each grid size; it is a difficulty heuristic, not a measured human difficulty guarantee. Every candidate still requires the complete no-guess progression certificate.
+ - Hints use actual rabbit placements and a provable next move. A highlighted hint preview does not act as a placed rabbit.
+ 
+ Players should be able to mark cells manually where appropriate.
+--- before/src/App.tsx
++++ after/src/App.tsx
+@@ -5,7 +5,8 @@
+ import './App.css'
+ import { playSound } from './audio'
+ import type { PuzzleDefinition } from './game/puzzle'
+-import { createPuzzleAsync } from './game/puzzleClient'
++import { createNormalPuzzleAsync, createPuzzleAsync } from './game/puzzleClient'
++import { loadNormalLevel } from './game/levels'
+ 
+ type Screen = 'menu' | 'game' | 'daily' | 'daily-game' | 'daily-error' | 'tutorial'
+ 
+@@ -24,7 +25,7 @@
+     normalStarting.current = true
+     if (entrySound && soundOn) playSound('entery')
+     try {
+-      if (!normalPuzzle) setNormalPuzzle(await createPuzzleAsync(4, 1, false))
++      if (!normalPuzzle) setNormalPuzzle(await createNormalPuzzleAsync(loadNormalLevel()))
+       setScreen('game')
+     } catch (error) {
+       setErrorIsDaily(false)
+--- before/src/components/GameScreen.tsx
++++ after/src/components/GameScreen.tsx
+@@ -3,7 +3,8 @@
+ import type { PointerEvent as ReactPointerEvent } from 'react'
+ import { attemptPlacement, automaticEliminations, createInitialState, findHint, isComplete } from '../game/puzzle'
+ import type { BoardState, CellState, PuzzleDefinition } from '../game/puzzle'
+-import { createPuzzleAsync } from '../game/puzzleClient'
++import { createNormalPuzzleAsync, createPuzzleAsync } from '../game/puzzleClient'
++import { saveNormalLevel } from '../game/levels'
+ import { playSound } from '../audio'
+ 
+ function Header({ soundOn, onToggleSound, onMenu }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void }) {
+@@ -114,7 +115,7 @@
+     const playVoice = () => { if (played) return; played = true; void playSound(voice) }
+     found.addEventListener('ended', playVoice, { once: true })
+     found.addEventListener('error', playVoice, { once: true })
+-    if (isComplete(puzzle, result.state.cells) && !endTimer.current) { playSound('win'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500) }
++    if (isComplete(puzzle, result.state.cells) && !endTimer.current) { playSound('win'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500); if (!daily) saveNormalLevel(level + 1) }
+     commit(result.state)
+   }
+   const markCell = (index: number, drawingAcross = false) => {
+@@ -179,8 +180,9 @@
+     generationAbort.current = controller
+     setPreparingPuzzle(true); setGenerationError('')
+     try {
+-      const next = await createPuzzleAsync(daily ? 9 : 4, daily ? 0 : level + 1, daily, controller.signal)
++      const next = daily ? await createPuzzleAsync(9, 0, true, controller.signal) : await createNormalPuzzleAsync(level + 1, controller.signal)
+       if (controller.signal.aborted) return
++      if (!daily) saveNormalLevel(next.level)
+       setEndScreenReady(false); setPuzzle(next); setBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([])
+     } catch (error) {
+       if (!controller.signal.aborted) setGenerationError(error instanceof Error ? error.message : 'Please try preparing the next puzzle again.')
+--- before/src/game/generator.ts
++++ after/src/game/generator.ts
+@@ -1,10 +1,12 @@
+ import { conflicts, simulateProgression } from './progression.ts'
+ import type { ProgressionStep } from './progression.ts'
++import { difficultyTier } from './levels.ts'
+ 
+ const COLORS = ['#D9C7A3', '#C8D5B9', '#E7D9D0', '#C9D8DF', '#D8D0E5', '#E8DCA8', '#E7C8B5', '#BFD8CC', '#D4D0C4']
+ export type GeneratedPuzzle = {
+   level: number; size: number; rabbitCount: number; regions: number[]; regionColors: string[]
+   solution: number[]; startRegion: number; daily: boolean; progression: ProgressionStep[]
++  difficulty: { tier: number; score: number; selectionSamples: number }
+ }
+ 
+ function shuffled<T>(values: T[], random: () => number): T[] {
+@@ -115,7 +117,10 @@
+ 
+ export function generateProgressivePuzzle(size: number, level = 1, daily = false, random: () => number = Math.random): GeneratedPuzzle {
+   if (![4, 6, 8, 9].includes(size)) throw new Error('Unsupported Bunoku board size')
+-  for (let attempt = 0; attempt < 256; attempt += 1) {
++  const tier = daily ? 0 : difficultyTier(level)
++  const sampleTarget = 1 + tier * 4
++  let best: GeneratedPuzzle | null = null, accepted = 0
++  for (let attempt = 0; attempt < Math.min(1024, 256 * sampleTarget); attempt += 1) {
+     const solution = rabbitSolution(size, random)
+     if (!solution) continue
+     const regions = carveRegions(size, solution, random)
+@@ -134,7 +139,22 @@
+     const replay = simulateProgression(puzzle)
+     if (!replay.solved || replay.steps.some((step) => !puzzle.solution.includes(step.cell))) continue
+     if (replay.steps.slice(0, -1).some((step) => step.affectedRegions.length === 0)) continue
+-    return { ...puzzle, progression: replay.steps }
++    // Compare same-size puzzles by their deduction paths, not their cell counts.
++    // Fewer simultaneous singles require more comparison; more remaining boxes
++    // require more elimination tracking. Boundary turns add spatial complexity.
++    const pathScore = replay.steps.slice(1, -1).reduce((score, step) => {
++      const counts = step.before.filter((count): count is number => count !== null)
++      return score + 2 / counts.filter((count) => count === 1).length + counts.reduce((sum, count) => sum + count - 1, 0) / (size * size)
++    }, 0) / size
++    const boundaryTurns = layout.reduce((sum, region, cell) => {
++      const row = Math.floor(cell / size), col = cell % size
++      return sum + Number(row + 1 < size && col + 1 < size && layout[cell + 1] !== region && layout[cell + size] !== region)
++    }, 0) / (size * size)
++    const score = pathScore + boundaryTurns
++    accepted += 1
++    if (!best || score > best.difficulty.score) best = { ...puzzle, progression: replay.steps, difficulty: { tier, score, selectionSamples: accepted } }
++    if (accepted >= sampleTarget) break
+   }
++  if (best) { best.difficulty.selectionSamples = accepted; return best }
+   throw new Error('We couldn’t prepare a puzzle with a complete logical progression. Please try again.')
+ }
+--- before/src/game/puzzle.ts
++++ after/src/game/puzzle.ts
+@@ -1,6 +1,7 @@
+ import { generateProgressivePuzzle } from './generator.ts'
+ import { availableRegions, automaticEliminations, forcedVisibleMove, simulateProgression } from './progression.ts'
+ import type { ProgressionStep } from './progression.ts'
++import { gridForLevel } from './levels.ts'
+ 
+ export type CellState = 'empty' | 'mark' | 'rabbit' | 'given' | 'hint'
+ export type BoardState = { cells: CellState[]; lives: number }
+@@ -99,7 +100,7 @@
+ }
+ 
+ export function createPuzzle(level = 1, random: () => number = Math.random): PuzzleDefinition {
+-  const puzzle = generateProgressivePuzzle(4, level, false, random)
++  const puzzle = generateProgressivePuzzle(gridForLevel(level), level, false, random)
+   if (!validatePuzzle(puzzle)) throw new Error('Generated Bunoku puzzle failed validation')
+   return puzzle
+ }
+--- before/src/game/puzzleClient.ts
++++ after/src/game/puzzleClient.ts
+@@ -1,5 +1,10 @@
+ import { validatePuzzle } from './puzzle.ts'
+ import type { PuzzleDefinition } from './puzzle.ts'
++import { gridForLevel } from './levels.ts'
++
++export function createNormalPuzzleAsync(level: number, signal?: AbortSignal): Promise<PuzzleDefinition> {
++  return createPuzzleAsync(gridForLevel(level), level, false, signal)
++}
+ 
+ export function createPuzzleAsync(size: number, level: number, daily: boolean, signal?: AbortSignal): Promise<PuzzleDefinition> {
+   return new Promise((resolve, reject) => {
+--- before/src/game/puzzle.worker.ts
++++ after/src/game/puzzle.worker.ts
+@@ -1,11 +1,12 @@
+ import { generateProgressivePuzzle } from './generator.ts'
+ import { validatePuzzle } from './puzzle.ts'
++import { gridForLevel } from './levels.ts'
+ 
+ const worker = self as unknown as Pick<Worker, 'postMessage' | 'onmessage'>
+ worker.onmessage = (event: MessageEvent<{ size: number; level: number; daily: boolean }>) => {
+   try {
+     const { size, level, daily } = event.data
+-    const puzzle = generateProgressivePuzzle(size, level, daily)
++    const puzzle = generateProgressivePuzzle(daily ? size : gridForLevel(level), level, daily)
+     if (!validatePuzzle(puzzle)) throw new Error('Puzzle validation failed')
+     worker.postMessage({ puzzle })
+   } catch (error) {
+--- /dev/null
++++ after/src/game/levels.ts
+@@ -0,0 +1,30 @@
++const PROGRESS_KEY = 'bunoku.normalLevel'
++type ProgressStorage = Pick<Storage, 'getItem' | 'setItem'>
++
++export function gridForLevel(level: number): number {
++  if (!Number.isSafeInteger(level) || level < 1) throw new Error('Invalid Bunoku level')
++  if (level === 1) return 4
++  if (level % 10 === 0) return 9
++  if (level % 10 === 5) return 8
++  return 6
++}
++
++export function difficultyTier(level: number): number {
++  gridForLevel(level)
++  return Math.min(4, Math.floor((level - 1) / 10))
++}
++
++export function loadNormalLevel(storage?: ProgressStorage): number {
++  try {
++    const value = Number((storage ?? globalThis.localStorage).getItem(PROGRESS_KEY))
++    return Number.isSafeInteger(value) && value > 0 ? value : 1
++  } catch { return 1 }
++}
++
++export function saveNormalLevel(level: number, storage?: ProgressStorage): void {
++  gridForLevel(level)
++  try {
++    const target = storage ?? globalThis.localStorage
++    target.setItem(PROGRESS_KEY, String(Math.max(loadNormalLevel(target), level)))
++  } catch { /* Gameplay remains usable when browser storage is unavailable. */ }
++}
+--- /dev/null
++++ after/tests/levels.test.mjs
+@@ -0,0 +1,103 @@
++import assert from 'node:assert/strict'
++import test from 'node:test'
++import { gridForLevel, difficultyTier, loadNormalLevel, saveNormalLevel } from '../src/game/levels.ts'
++import { createPuzzle, createInitialState, findHint, attemptPlacement, isComplete, validatePuzzle, countSolutions } from '../src/game/puzzle.ts'
++import { playSound } from '../src/audio.ts'
++import { existsSync } from 'node:fs'
++
++const seeded = (seed) => () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
++
++test('exact level schedule, including precedence at multiples of ten', () => {
++  for (let level = 1; level <= 100; level++) {
++    const expected = level === 1 ? 4 : level % 10 === 0 ? 9 : level % 10 === 5 ? 8 : 6
++    assert.equal(gridForLevel(level), expected)
++  }
++  for (const invalid of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => gridForLevel(invalid))
++})
++
++for (const [level, size] of [[1, 4], [2, 6], [5, 8], [10, 9], [15, 8], [20, 9]]) {
++  test(`level ${level}: 30 real ${size}x${size} puzzles finish through gameplay and hints`, () => {
++    const times = []
++    for (let run = 1; run <= 30; run++) {
++      const start = performance.now()
++      const p = createPuzzle(level, seeded(run * 617 + level))
++      times.push(performance.now() - start)
++      assert.equal(p.size, size)
++      assert.equal(p.level, level)
++      assert.equal(p.rabbitCount, size)
++      assert(validatePuzzle(p))
++      assert.equal(countSolutions(p.regions, 2), 1)
++      let state = createInitialState(p)
++      assert(state.cells.every((cell) => cell === 'empty'))
++      for (let turn = 0; turn < size; turn++) {
++        const cell = findHint(p, state.cells)
++        assert.notEqual(cell, null)
++        const result = attemptPlacement(p, state, cell)
++        assert(result.accepted)
++        state = result.state
++      }
++      assert(isComplete(p, state.cells))
++      assert.equal(state.lives, 3)
++      const restart = createInitialState(p)
++      assert.equal(p.level, level)
++      assert.equal(restart.cells.length, size * size)
++      assert(restart.cells.every((cell) => cell === 'empty'))
++    }
++    console.log(JSON.stringify({level, size, puzzles:30, maxGenerationMs:Math.round(Math.max(...times))}))
++  })
++}
++
++test('later levels select harder deduction arrangements on the same grid size', () => {
++  for (const levels of [[2, 12, 22], [5, 15, 25], [10, 20, 30]]) {
++    let improved = 0
++    for (let seed = 1; seed <= 20; seed++) {
++      const samples = levels.map((level) => createPuzzle(level, seeded(seed)))
++      assert(samples.every((p) => p.size === samples[0].size))
++      for (let i = 1; i < samples.length; i++) {
++        assert(samples[i].difficulty.score >= samples[i-1].difficulty.score)
++        if (samples[i].difficulty.score > samples[i-1].difficulty.score) improved++
++        assert(samples[i].difficulty.selectionSamples > samples[i-1].difficulty.selectionSamples)
++      }
++    }
++    assert(improved > 0, 'arrangement scoring must change actual puzzle selection')
++    console.log(JSON.stringify({levels, improvedComparisons:improved, comparisons:40}))
++  }
++  assert.equal(difficultyTier(999), 4)
++})
++
++test('normal progress persists, is monotonic, and tolerates unavailable storage', () => {
++  const data = new Map()
++  const storage = { getItem:key=>data.get(key) ?? null, setItem:(key,value)=>data.set(key,value) }
++  assert.equal(loadNormalLevel(storage), 1)
++  saveNormalLevel(5, storage)
++  assert.equal(loadNormalLevel(storage), 5)
++  saveNormalLevel(2, storage)
++  assert.equal(loadNormalLevel(storage), 5)
++  saveNormalLevel(20, storage)
++  assert.equal(loadNormalLevel(storage), 20)
++  storage.setItem('bunoku.normalLevel', 'invalid')
++  assert.equal(loadNormalLevel(storage), 1)
++  const unavailable = { getItem:()=>{throw Error('blocked')}, setItem:()=>{throw Error('blocked')} }
++  assert.equal(loadNormalLevel(unavailable), 1)
++  assert.doesNotThrow(()=>saveNormalLevel(3, unavailable))
++})
++
++test('every grid uses the existing sound paths and one play per sound request', () => {
++  const originalAudio = globalThis.Audio
++  const played = []
++  globalThis.Audio = class {
++    constructor(src) { this.src = src }
++    play() { played.push(this.src); return Promise.resolve() }
++  }
++  try {
++    const names = ['Xon', 'Xoff', 'foundbunny', 'entery', 'nice', 'wow', 'excellent', 'unrealistic', 'failbite', 'win', 'fail']
++    for (const size of [4, 6, 8, 9]) {
++      const before = played.length
++      for (const name of names) {
++        assert(existsSync(new URL(`../public/audio/${name}.mp3`, import.meta.url)))
++        playSound(name)
++      }
++      assert.deepEqual(played.slice(before), names.map((name) => `/audio/${name}.mp3`), `same sound contract at ${size}x${size}`)
++    }
++  } finally { globalThis.Audio = originalAudio }
++})

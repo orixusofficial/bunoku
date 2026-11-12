@@ -1,0 +1,5 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><pre id="audio-status" style="position:fixed;bottom:0;left:0;font-size:10px;pointer-events:none;background:white;z-index:100"></pre><script type="module">
+const players=[];const NativeAudio=window.Audio;window.Audio=class extends NativeAudio{constructor(src){super(src);players.push(this)}};
+await import('/src/main.tsx');
+setInterval(()=>{const ms=players.filter(p=>p.src.endsWith('/music.mp3'));const m=ms.at(-1);document.querySelector('#audio-status').textContent=JSON.stringify({musicInstances:ms.length,playing:ms.filter(p=>!p.paused&&!p.muted).length,paused:m?.paused,muted:m?.muted,time:m?.currentTime,volume:m?.volume,loop:m?.loop,hint:document.querySelector('.hint-target')?.getAttribute('aria-label')},null,1)},100);
+</script></body></html>

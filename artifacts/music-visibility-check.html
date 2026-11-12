@@ -1,0 +1,84 @@
+<html><body><button id="off">Sound OFF</button><button id="on">Sound ON</button><pre></pre><script type="module">const players=[]; const NativeAudio=window.Audio; window.Audio=class extends NativeAudio { constructor(src){super('file:///D:/bunoku/public'+src);players.push(this)} };
+let soundEnabled = true;
+let initialized = false;
+let music = null;
+const effects = new Set();
+function resumeMusic() {
+    if (!initialized || !soundEnabled || document.hidden) {
+        if (music) {
+            music.muted = true;
+            music.pause();
+        }
+        return;
+    }
+    if (!music) {
+        music = new Audio('/audio/music.mp3');
+        music.loop = true;
+        music.volume = 0.05;
+    }
+    music.muted = false;
+    if (music.paused)
+        void music.play().then(() => {
+            // A pending play request must not undo a later Sound OFF action.
+            if ((!initialized || !soundEnabled || document.hidden) && music) {
+                music.muted = true;
+                music.pause();
+            }
+        }).catch(() => {
+            // A later user interaction retries blocked playback.
+        });
+}
+if (import.meta.hot)
+    import.meta.hot.dispose(() => {
+        // Fast Refresh preserves React state, but replaces this module's globals.
+        // Silence the old module's players before its references are discarded.
+        if (music) {
+            music.muted = true;
+            music.pause();
+        }
+        effects.forEach((audio) => { audio.muted = true; audio.pause(); });
+    });
+function setSoundEnabled(enabled) {
+    soundEnabled = enabled;
+    effects.forEach((audio) => { audio.muted = !enabled; });
+    if (!enabled && music) {
+        music.muted = true;
+        music.pause();
+    }
+    else
+        resumeMusic();
+}
+function initializeAudio() {
+    initialized = true;
+    const onInteraction = () => resumeMusic();
+    const onVisibilityChange = () => resumeMusic();
+    document.addEventListener('pointerdown', onInteraction, true);
+    document.addEventListener('keydown', onInteraction, true);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    resumeMusic();
+    return () => {
+        initialized = false;
+        document.removeEventListener('pointerdown', onInteraction, true);
+        document.removeEventListener('keydown', onInteraction, true);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        if (music) {
+            music.muted = true;
+            music.pause();
+        }
+    };
+}
+function playSound(name) {
+    const audio = new Audio(`/audio/${name}.mp3`);
+    audio.muted = !soundEnabled;
+    effects.add(audio);
+    const release = () => effects.delete(audio);
+    audio.onended = release;
+    audio.onerror = release;
+    void audio.play().catch(release);
+    return audio;
+}
+
+const log=[];initializeAudio();document.addEventListener('visibilitychange',()=>{const m=players[0];log.push({hidden:document.hidden,paused:m.paused,muted:m.muted,time:m.currentTime})});
+document.querySelector('#off').onclick=()=>setSoundEnabled(false);document.querySelector('#on').onclick=()=>setSoundEnabled(true);
+setInterval(()=>{const m=players[0];document.querySelector('pre').textContent=JSON.stringify({hidden:document.hidden,players:players.length,paused:m.paused,muted:m.muted,volume:m.volume,loop:m.loop,time:m.currentTime,log},null,2)},100);
+</script></body></html>

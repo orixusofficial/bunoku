@@ -1,0 +1,104 @@
+[
+  {
+    "board": {
+      "height": 332,
+      "left": 14,
+      "right": 346,
+      "width": 332
+    },
+    "cell": {
+      "height": 33.10000228881836,
+      "width": 33.10000228881836
+    },
+    "controlsBottom": 755.25,
+    "height": 800,
+    "scrollHeight": 800,
+    "scrollWidth": 360,
+    "width": 360
+  },
+  {
+    "board": {
+      "height": 354.3999938964844,
+      "left": 18,
+      "right": 372.3999938964844,
+      "width": 354.3999938964844
+    },
+    "cell": {
+      "height": 35.60000228881836,
+      "width": 35.60000228881836
+    },
+    "controlsBottom": 796.5499877929688,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "board": {
+      "height": 520,
+      "left": 124,
+      "right": 644,
+      "width": 520
+    },
+    "cell": {
+      "height": 51.54999923706055,
+      "width": 51.54999923706055
+    },
+    "controlsBottom": 738,
+    "height": 1024,
+    "scrollHeight": 1024,
+    "scrollWidth": 768,
+    "width": 768
+  },
+  {
+    "board": {
+      "height": 520,
+      "left": 252,
+      "right": 772,
+      "width": 520
+    },
+    "cell": {
+      "height": 51.54999923706055,
+      "width": 51.54999923706055
+    },
+    "controlsBottom": 704,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1024,
+    "width": 1024
+  },
+  {
+    "board": {
+      "height": 520,
+      "left": 423.2000122070313,
+      "right": 943.2000122070312,
+      "width": 520
+    },
+    "cell": {
+      "height": 51.54999923706055,
+      "width": 51.54999923706055
+    },
+    "controlsBottom": 704,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "width": 1366
+  },
+  {
+    "board": {
+      "height": 520,
+      "left": 460,
+      "right": 980,
+      "width": 520
+    },
+    "cell": {
+      "height": 51.54999923706055,
+      "width": 51.54999923706055
+    },
+    "controlsBottom": 738,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "width": 1440
+  }
+]

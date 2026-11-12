@@ -1,0 +1,63 @@
+{
+  "backup": "D:\\bunoku\\backups\\before-progressive-20261112-162250",
+  "modified": [
+    "PRD.md",
+    "src/App.tsx",
+    "src/App.css",
+    "src/components/GameScreen.tsx",
+    "src/game/puzzle.ts",
+    "tests/puzzle.test.mjs"
+  ],
+  "created": [
+    "src/game/generator.ts",
+    "src/game/progression.ts",
+    "src/game/puzzle.worker.ts",
+    "src/game/puzzleClient.ts",
+    "tests/progression.test.mjs"
+  ],
+  "preIntegrationVerification": {
+    "boardsPerSize": 100,
+    "sizes": [
+      4,
+      6,
+      8,
+      9
+    ],
+    "allConnected": true,
+    "allUniqueSolutions": true,
+    "allSolvedWithoutGuessing": true,
+    "allNonfinalMovesReduceAnotherRegion": true
+  },
+  "distinctLayouts": {
+    "4": 87,
+    "6": 100,
+    "8": 100,
+    "9": 100
+  },
+  "distinctRabbitSolutions": {
+    "4": 2,
+    "6": 62,
+    "8": 100,
+    "9": 100
+  },
+  "checks": {
+    "build": "passed",
+    "targetedEslint": "passed",
+    "nodeTests": "8 passed",
+    "browser4x4Completion": "passed",
+    "browser9x9Completion": "passed",
+    "browserNextWorkerLoad": "passed",
+    "mistakeUndoWithManualX": "passed",
+    "rabbitUndoAutomaticXs": "passed",
+    "mouseDrag": "passed",
+    "hintPreview": "passed",
+    "restart": "passed",
+    "threeLivesGameOver": "passed"
+  },
+  "limitations": [
+    "Starting regions currently use one cell, within approved 1-2 range.",
+    "Deductions currently use proved region singles; generated boards are guaranteed to finish with those rules.",
+    "6x6 and 8x8 are engine configurations, not additional menu modes.",
+    "Physical mobile touch was not separately exercised."
+  ]
+}

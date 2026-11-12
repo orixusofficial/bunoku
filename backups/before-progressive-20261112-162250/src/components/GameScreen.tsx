@@ -1,0 +1,171 @@
+import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import { attemptPlacement, createInitialState, createPuzzle, createDailyPuzzle, findHint, isComplete } from '../game/puzzle'
+import type { BoardState, CellState } from '../game/puzzle'
+import { playSound } from '../audio'
+
+function Header({ soundOn, onToggleSound, onMenu }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void }) {
+  return <header className="topbar"><div className="game-header-brand"><a className="brand" href="#game" aria-label="Bunoku"><span className="brand-mark">b</span><span>bunoku</span></a><button type="button" className="main-menu-button" onClick={onMenu}><HomeIcon /><span>Main Menu</span></button></div><button className="sound-toggle" type="button" aria-label={`Sound ${soundOn ? 'on' : 'off'}`} aria-pressed={soundOn} onClick={onToggleSound}><SoundIcon muted={!soundOn} /><span>Sound {soundOn ? 'on' : 'off'}</span></button></header>
+}
+function HomeIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1V10Z" /></svg> }
+function SoundIcon({ muted }: { muted: boolean }) { return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Z" />{muted ? <path d="m17 9 5 6m0-6-5 6" /> : <><path d="M16 9a5 5 0 0 1 0 6" /><path d="M18.5 6.5a9 9 0 0 1 0 11" /></>}</svg> }
+
+function LevelInfo({ level, rabbitCount, cells, lives, daily }: { level: number; rabbitCount: number; cells: CellState[]; lives: number; daily: boolean }) {
+  const placed = cells.filter((cell) => cell === 'rabbit' || cell === 'given' || cell === 'hint').length
+  return <section className="level-pill" aria-label={`${daily ? 'Daily puzzle' : `Level ${level}`}, ${placed} of ${rabbitCount} rabbits placed, ${lives} lives`}><img className="level-bunny" src="/bunny/bunny.svg" alt=""/><div className="level-copy"><span className="eyebrow">{daily ? 'DAILY PUZZLE' : `LEVEL ${String(level).padStart(2, '0')}`}</span><span className="placement-count">{placed}<span className="count-divider">/</span>{rabbitCount} <span className="placed-label">rabbits</span></span></div><div className="lives" aria-label={`${lives} lives remaining`}>{[0, 1, 2].map((life) => { const eaten = life < 3 - lives; return <img className={`life-carrot${eaten ? ' is-eaten' : ''}`} key={life} src={eaten ? '/bunny/carrot-life-eaten.svg' : '/bunny/carrot-life.svg'} alt=""/> })}</div></section>
+}
+
+type FailedCellAnimation = { id: number; index: number }
+type Celebration = { id: number; index: number; text: string }
+
+function PuzzleBoard({ puzzle, cells, onPointerStart, onPointerEnter, onPointerMove, onPointerEnd, onDoubleClick, hintCell, failures, celebrations, onCelebrationEnd }: { puzzle: ReturnType<typeof createPuzzle>; cells: CellState[]; onPointerStart: (index: number, event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerEnter: (index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void; onPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void; onDoubleClick: (index: number) => void; hintCell: number | null; failures: FailedCellAnimation[]; celebrations: Celebration[]; onCelebrationEnd: (id: number) => void }) {
+  const size = puzzle.size
+  return <div className="board" role="grid" aria-label={`${size} by ${size} puzzle board`} style={{ '--board-size': size } as CSSProperties} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onPointerLeave={(event) => { if (event.buttons === 0) onPointerEnd(event) }}>{cells.map((cell, index) => {
+    const row = Math.floor(index / size)
+    const region = puzzle.regions[index]
+    const active = region === puzzle.startRegion
+    return <button key={index} type="button" role="gridcell" data-cell-index={index} className={`cell region-${region} ${active ? 'region-start' : ''} ${cell !== 'empty' ? `cell-${cell}` : ''} ${hintCell === index ? 'hint-target' : ''}`} style={{ '--region-color': puzzle.regionColors[region] } as CSSProperties} aria-label={`Row ${row + 1}, column ${index % size + 1}${puzzle.given === index ? ', given rabbit' : cell === 'mark' ? ', marked' : cell === 'rabbit' || cell === 'hint' || cell === 'given' ? ', rabbit' : failures.some((failure) => failure.index === index) ? ', failed' : ''}`} onPointerDown={(event) => onPointerStart(index, event)} onPointerEnter={() => onPointerEnter(index)} onDoubleClick={() => onDoubleClick(index)} disabled={puzzle.given === index || cell === 'given' || failures.some((failure) => failure.index === index)}>{cell === 'rabbit' || cell === 'given' || cell === 'hint' ? <img src="/bunny/bunny.svg" alt=""/> : cell === 'mark' ? <span className="cell-x">×</span> : null}{failures.filter((failure) => failure.index === index).map((failure) => <span className="failed-cell-bite" key={failure.id} aria-hidden="true"><img className="bite-whole" src="/bunny/carrot.svg" alt=""/><img className="bite-eaten" src="/bunny/carrot-life-eaten.svg" alt=""/></span>)}{celebrations.filter((celebration) => celebration.index === index).map((celebration) => <span className="bunny-celebration" key={celebration.id} onAnimationEnd={() => onCelebrationEnd(celebration.id)}>{celebration.text}</span>)}</button>
+  })}</div>
+}
+
+function ControlIcon({ name }: { name: 'hint' | 'undo' | 'restart' }) {
+  if (name === 'hint') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 3h4m-2-20a7 7 0 0 0-4 12.75c.6.42 1 1 1 1.75h6c0-.75.4-1.33 1-1.75A7 7 0 0 0 12 1Z"/></svg>
+  if (name === 'undo') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg>
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.35-5.65L20 7"/><path d="M20 3v4h-4"/></svg>
+}
+function BottomControls({ onHint, onUndo, onRestart, canUndo }: { onHint: () => void; onUndo: () => void; onRestart: () => void; canUndo: boolean }) {
+  return <nav className="controls" aria-label="Puzzle controls"><button className="control-button" onClick={onHint}><ControlIcon name="hint"/><span>Hint</span></button><button className="control-button" onClick={onUndo} disabled={!canUndo}><ControlIcon name="undo"/><span>Undo</span></button><button className="control-button" onClick={onRestart}><ControlIcon name="restart"/><span>Restart</span></button></nav>
+}
+
+export default function GameScreen({ soundOn, onToggleSound, onMenu, daily = false, initialPuzzle }: { soundOn: boolean; onToggleSound: () => void; onMenu: () => void; daily?: boolean; initialPuzzle?: ReturnType<typeof createPuzzle> }) {
+  const [puzzle, setPuzzle] = useState(() => initialPuzzle ?? (daily ? createDailyPuzzle() : createPuzzle(1)))
+  const [board, setBoard] = useState<BoardState>(() => createInitialState(puzzle))
+  const [history, setHistory] = useState<BoardState[]>([])
+  const [failureHistory, setFailureHistory] = useState<FailedCellAnimation[][]>([])
+  const [notice, setNotice] = useState('')
+  const [hintCell, setHintCell] = useState<number | null>(null)
+  const [usedHints, setUsedHints] = useState<number[]>([])
+  const [failures, setFailures] = useState<FailedCellAnimation[]>([])
+  const [celebrations, setCelebrations] = useState<Celebration[]>([])
+  const celebrationId = useRef(0)
+  const combo = useRef(0)
+  const drawing = useRef<{ pointerId: number; visited: Set<number> } | null>(null)
+  const failureId = useRef(0)
+  const failureTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const failureAudios = useRef<Set<HTMLAudioElement>>(new Set())
+  const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [endScreenReady, setEndScreenReady] = useState(false)
+  const level = puzzle.level
+  const completed = isComplete(puzzle, board.cells)
+  const gameOver = board.lives === 0
+
+  useEffect(() => () => {
+    failureTimers.current.forEach(clearTimeout)
+    failureAudios.current.forEach((audio) => { audio.pause(); audio.src = '' })
+    if (endTimer.current) clearTimeout(endTimer.current)
+  }, [])
+
+  const triggerFailureFeedback = (index: number) => {
+    if (failures.some((failure) => failure.index === index)) return
+    const id = ++failureId.current
+    setFailures((current) => [...current, { id, index }])
+    combo.current = 0
+    const audio = playSound('failbite')
+    failureAudios.current.add(audio)
+    const releaseAudio = () => failureAudios.current.delete(audio)
+    audio.addEventListener('ended', releaseAudio, { once: true })
+    audio.addEventListener('error', releaseAudio, { once: true })
+    void audio.play().catch(releaseAudio)
+  }
+
+  const commit = (next: BoardState) => { setHistory((items) => [...items, board]); setFailureHistory((items) => [...items, [...failures]]); setBoard(next); setHintCell(null); setNotice('') }
+  const placeRabbit = (index: number) => {
+    if (endTimer.current) return
+    if (failures.some((failure) => failure.index === index)) return
+    if (board.cells[index] === 'given' || board.cells[index] === 'rabbit' || board.cells[index] === 'hint' || gameOver || completed) return
+    const result = attemptPlacement(puzzle, board, index)
+    if (!result.accepted) {
+      if (!result.mistake) return
+      triggerFailureFeedback(index)
+      const cells = [...result.state.cells]
+      cells[index] = 'empty'
+      commit({ ...result.state, cells })
+      if (result.state.lives === 0 && !endTimer.current) { playSound('fail'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500) }
+      setNotice(result.state.lives === 0 ? 'Oh no, out of carrots!' : 'That rabbit is not part of this puzzle solution.')
+      return
+    }
+    const sequence = ['nice', 'wow', 'excellent', 'unrealistic'] as const
+    const found = playSound('foundbunny')
+    const voice = sequence[combo.current % sequence.length]
+    const labels = { nice: 'NICE! ✨', wow: 'WOW! ✨', excellent: 'EXCELLENT! ✨', unrealistic: 'UNREALISTIC! ✨' } as const
+    const celebration = { id: ++celebrationId.current, index, text: labels[voice] }
+    setCelebrations((items) => [...items, celebration])
+    combo.current += 1
+    let played = false
+    const playVoice = () => { if (played) return; played = true; void playSound(voice) }
+    found.addEventListener('ended', playVoice, { once: true })
+    found.addEventListener('error', playVoice, { once: true })
+    if (isComplete(puzzle, result.state.cells) && !endTimer.current) { playSound('win'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500) }
+    commit(result.state)
+  }
+  const markCell = (index: number, drawingAcross = false) => {
+    if (endTimer.current) return
+    if (failures.some((failure) => failure.index === index)) return
+    if (gameOver || completed || board.cells[index] === 'given' || board.cells[index] === 'rabbit' || board.cells[index] === 'hint') return
+    if (drawingAcross && board.cells[index] !== 'empty') return
+    const cells = [...board.cells]
+    const removing = cells[index] === 'mark'
+    cells[index] = cells[index] === 'mark' ? 'empty' : 'mark'
+    playSound(removing ? 'Xoff' : 'Xon')
+    commit({ cells, lives: board.lives })
+  }
+  const onPointerStart = (index: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.preventDefault()
+    if (endTimer.current) return
+    drawing.current = { pointerId: event.pointerId, visited: new Set([index]) }
+    markCell(index)
+  }
+  const onPointerEnter = (index: number) => {
+    if (!drawing.current || drawing.current.visited.has(index)) return
+    drawing.current.visited.add(index)
+    markCell(index, true)
+  }
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drawing.current || drawing.current.pointerId !== event.pointerId) return
+    const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-cell-index]')
+    const index = cell?.dataset.cellIndex
+    if (index !== undefined) onPointerEnter(Number(index))
+  }
+  const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (drawing.current?.pointerId === event.pointerId) drawing.current = null
+  }
+  const onHint = () => {
+    if (gameOver || completed || endTimer.current) return
+    const index = findHint(puzzle, board.cells, usedHints)
+    if (index === null) { setNotice('No safe next move is available. Try undoing a rabbit.'); return }
+    setUsedHints((items) => [...items, index])
+    setHintCell(index)
+    setNotice('A safe rabbit spot is highlighted!')
+  }
+  const onUndo = () => {
+    if (endTimer.current) return
+    if (!history.length) return
+    setBoard(history[history.length - 1])
+    setHistory((items) => items.slice(0, -1))
+    setFailures(failureHistory[failureHistory.length - 1] ?? [])
+    setFailureHistory((items) => items.slice(0, -1))
+    setHintCell(null)
+    setNotice('Undone.')
+  }
+  const onRestart = () => {
+    if (endTimer.current) return
+    if (!window.confirm('Restart this puzzle? Your rabbits and marks will be cleared.')) return
+    setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); drawing.current = null
+  }
+  const startOver = () => { if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
+  const nextPuzzle = () => { const next = daily ? createDailyPuzzle() : createPuzzle(level + 1); setEndScreenReady(false); setPuzzle(next); setBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([]) }
+
+  return <main className="game-shell" id="game"><Header soundOn={soundOn} onToggleSound={onToggleSound} onMenu={onMenu}/><div className={`game-content${(gameOver || completed) && endScreenReady ? ' game-ended' : ''}`}><LevelInfo level={level} rabbitCount={puzzle.rabbitCount} cells={board.cells} lives={board.lives} daily={daily}/>{gameOver && endScreenReady ? <section className="game-result"><div className="out-of-carrots-art" aria-hidden="true">{[0, 1, 2].map((carrot) => <img src="/bunny/carrot-life-eaten.svg" alt="" key={carrot}/>)}</div><h1>Out of Carrots</h1><p>Take a breath and give this puzzle another try.</p><p>Oh no, out of carrots!</p><button className="pill-button primary-button" onClick={startOver}>Restart</button><button className="text-button" onClick={onMenu}>Main Menu</button></section> : completed && endScreenReady ? <section className="game-result"><img src="/bunny/bunny.svg" alt=""/><h1>Puzzle Complete!</h1><p>You solved the Bunoku puzzle with {board.lives} carrots left.</p><button className="pill-button primary-button" onClick={nextPuzzle}>Next!</button><button className="text-button" onClick={onMenu}>Main Menu</button></section> : <><PuzzleBoard puzzle={puzzle} cells={board.cells} onPointerStart={onPointerStart} onPointerEnter={onPointerEnter} onPointerMove={onPointerMove} onPointerEnd={onPointerEnd} onDoubleClick={placeRabbit} hintCell={hintCell} failures={failures} celebrations={celebrations} onCelebrationEnd={(id) => setCelebrations((items) => items.filter((item) => item.id !== id))}/><div className="game-feedback" aria-live="polite">{notice}</div><BottomControls onHint={onHint} onUndo={onUndo} onRestart={onRestart} canUndo={history.length > 0}/></>}</div></main>
+}

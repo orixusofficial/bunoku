@@ -1,0 +1,9 @@
+<!doctype html><html><body><button id="start">Start music</button><button id="off">Sound OFF</button><button id="on">Sound ON</button><button id="loop">Check loop near end</button><pre id="status"></pre><script type="module">
+const players=[];const NativeAudio=window.Audio;window.Audio=class extends NativeAudio{constructor(src){super(src);players.push(this)}};
+const audio=await import('/src/audio.ts');audio.initializeAudio();
+document.querySelector('#off').onclick=()=>audio.setSoundEnabled(false);
+document.querySelector('#on').onclick=()=>audio.setSoundEnabled(true);
+let wraps=0,last=0;
+document.querySelector('#loop').onclick=()=>{const m=players.find(p=>p.src.endsWith('/music.mp3'));m.currentTime=m.duration-.3;last=m.currentTime};
+setInterval(()=>{const m=players.find(p=>p.src.endsWith('/music.mp3'));if(m&&last>m.duration-1&&m.currentTime<1)wraps++;if(m)last=m.currentTime;document.querySelector('#status').textContent=JSON.stringify({musicInstances:players.filter(p=>p.src.endsWith('/music.mp3')).length,...m&&{paused:m.paused,muted:m.muted,volume:m.volume,loop:m.loop,time:m.currentTime,duration:m.duration,error:m.error?.message??null},wraps},null,2)},100);
+</script></body></html>
