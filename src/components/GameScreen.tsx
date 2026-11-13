@@ -21,6 +21,8 @@ import AudioQuickControls from './AudioQuickControls'
 import { saveTutorialComplete, startingTutorialStep, tutorialBlockedCells, tutorialTarget } from '../game/tutorial'
 import type { TutorialStep } from '../game/tutorial'
 import { keyboardHandlers } from '../game/keyboard'
+import { crossedCells } from '../game/dragPath'
+import type { CellBounds } from '../game/dragPath'
 
 function Header({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onMenu }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onMenu: () => void }) {
   return <header className="topbar"><div className="game-header-brand"><a className="brand" href="#game" aria-label="Bunoku"><span className="brand-mark">b</span><span>bunoku</span></a><button type="button" className="main-menu-button" onClick={onMenu}><HomeIcon /><span>{t("Main Menu")}</span></button></div><AudioQuickControls musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={onToggleMusic} onToggleSoundEffects={onToggleSoundEffects}/></header>
@@ -84,7 +86,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const [celebrations, setCelebrations] = useState<Celebration[]>([])
   const celebrationId = useRef(0)
   const combo = useRef(initialDailyProgress?.combo ?? 0)
-  const drawing = useRef<{ pointerId: number; visited: Set<number>; touch: boolean; index: number; x: number; y: number; dragged: boolean } | null>(null)
+  const drawing = useRef<{ pointerId: number; visited: Set<number>; touch: boolean; index: number; x: number; y: number; lastX: number; lastY: number; bounds: CellBounds[]; dragged: boolean } | null>(null)
   const lastTouchTap = useRef<{ index: number; time: number } | null>(null)
   const touchInput = useRef(false)
   const failureId = useRef(Math.max(0, ...(initialDailyProgress?.failures.map(f=>f.id) ?? [])))
@@ -194,7 +196,13 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     event.preventDefault()
     if (endTimer.current) return
     touchInput.current = event.pointerType === 'touch'
-    drawing.current = { pointerId: event.pointerId, visited: new Set([index]), touch: touchInput.current, index, x: event.clientX, y: event.clientY, dragged: false }
+    // Read geometry once per gesture, rather than hit-testing/layout-reading at
+    // every intermediate point. Board touch-action already prevents scrolling.
+    const bounds = [...(event.currentTarget?.closest('.board')?.querySelectorAll<HTMLElement>('[data-cell-index]') ?? [])].map((cell) => {
+      const { left, right, top, bottom } = cell.getBoundingClientRect()
+      return { index: Number(cell.dataset.cellIndex), left, right, top, bottom }
+    })
+    drawing.current = { pointerId: event.pointerId, visited: new Set([index]), touch: touchInput.current, index, x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, bounds, dragged: false }
     markCell(index)
   }
   const onPointerEnter = (index: number) => {
@@ -205,18 +213,24 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     markCell(index, true)
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drawing.current || drawing.current.pointerId !== event.pointerId) return
-    if (drawing.current.touch && Math.hypot(event.clientX - drawing.current.x, event.clientY - drawing.current.y) > 8) {
-      drawing.current.dragged = true
-      lastTouchTap.current = null
+    const gesture = drawing.current
+    if (!gesture || gesture.pointerId !== event.pointerId) return
+    const samples = event.nativeEvent?.getCoalescedEvents?.() ?? []
+    for (const point of [...samples, event]) {
+      if (gesture.touch && Math.hypot(point.clientX - gesture.x, point.clientY - gesture.y) > 8) {
+        gesture.dragged = true
+        lastTouchTap.current = null
+      }
+      for (const index of crossedCells(gesture.lastX, gesture.lastY, point.clientX, point.clientY, gesture.bounds)) onPointerEnter(index)
+      gesture.lastX = point.clientX
+      gesture.lastY = point.clientY
     }
-    const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-cell-index]')
-    const index = cell?.dataset.cellIndex
-    if (index !== undefined) onPointerEnter(Number(index))
   }
   const onPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
     const gesture = drawing.current
     if (!gesture || gesture.pointerId !== event.pointerId) return
+    // Some devices deliver the final position only on pointerup.
+    if (event.type === 'pointerup') onPointerMove(event)
     drawing.current = null
     if (event.type === 'pointerup' && tutorialStep === 3 && gesture.dragged && [...gesture.visited].filter((index) => blockedTutorialCells.includes(index)).length >= 2) { setTutorialProgress(4); lastTouchTap.current = null; return }
     if (!gesture.touch) return

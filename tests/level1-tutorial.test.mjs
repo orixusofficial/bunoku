@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as engine from '../src/game/puzzle.ts';
+import * as dragPath from '../src/game/dragPath.ts';
 import {createAllowances} from '../src/game/allowances.ts';
 const source=fs.readFileSync(new URL('../src/components/GameScreen.tsx',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
@@ -16,7 +17,7 @@ async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Prom
  let slots=[],cursor=0,clock=1000;const sounds=[],timers=[],requestedRewards=[];
  const react={useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i]},useEffect(){cursor++}};
  const jsx=(type,props)=>({type,props}),module={exports:{}};
- const req=n=>n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true,requestRewardedAd:adRequest}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
+ const req=n=>n==='../game/dragPath'?dragPath:n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true,requestRewardedAd:adRequest}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
  vm.runInNewContext('(function(require,module,exports){'+js+'})',{localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
  const props={initialPuzzle:puzzle,daily,onMenu(){},onRequestReward(kind){requestedRewards.push(kind)},rewardAction:null,musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
  const render=()=>{cursor=0;return module.exports.default(props)};
@@ -26,7 +27,7 @@ async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Prom
  const tap=(index,kind='mouse')=>{board().onPointerStart(index,ev('pointerdown',kind));clock+=25;board().onPointerEnd(ev('pointerup',kind));clock+=60};
  const double=(index,kind='mouse')=>{tap(index,kind);tap(index,kind);if(kind==='mouse')board().onDoubleClick(index)};
  const drag=(indices,kind='mouse')=>{board().onPointerStart(indices[0],ev('pointerdown',kind));for(const index of indices.slice(1))board().onPointerEnter(index);board().onPointerEnd(ev('pointerup',kind));clock+=1000};
- render();return{puzzle,tutorial,slots,allowance,storage,sounds,timers,requestedRewards,render,node,board,controls,tap,double,drag,wait(){clock+=1000}};
+ render();return{puzzle,tutorial,slots,allowance,storage,sounds,timers,requestedRewards,render,node,board,controls,tap,double,drag,ev,wait(){clock+=1000}};
 }
 for(const kind of ['mouse','touch'])test(kind+': complete fresh-player steps 1–5 and finish the real puzzle',async()=>{
  const f=await fixture(),target=f.tutorial.tutorialTarget(f.puzzle),blocked=f.tutorial.tutorialBlockedCells(f.puzzle);
@@ -85,4 +86,59 @@ for(const kind of ['hint','undo']) test(`${kind}: zero balance requests once, gr
  f.allowance.consume(kind);f.allowance.consume(kind);action();assert.equal(calls,3,'no custom cooldown blocks the next request')
  finish('unfilled');await new Promise(setImmediate)
  assert.equal(f.allowance.status()[kind+'Credits'],0)
+})
+
+// Real GameScreen handlers, with no intervening render between movement events.
+// This models sparse/batched mobile input rather than calling markCell directly.
+function stroke(f, indices, {kind='touch',coalesced=false,upOnly=false,cancel=false}={}) {
+ const n=f.puzzle.size, point=i=>({clientX:i%n*32+14,clientY:Math.floor(i/n)*32+14})
+ const cells=Array.from({length:n*n},(_,i)=>({dataset:{cellIndex:String(i)},getBoundingClientRect(){return{left:i%n*32,right:i%n*32+28,top:Math.floor(i/n)*32,bottom:Math.floor(i/n)*32+28}}}))
+ const target={closest(){return{querySelectorAll(){return cells}}}}
+ const event=(type,i)=>({...f.ev(type,kind),...point(i),currentTarget:target})
+ const handlers=f.board()
+ handlers.onPointerStart(indices[0],event('pointerdown',indices[0]))
+ if(!upOnly){
+   if(coalesced)handlers.onPointerMove({...event('pointermove',indices.at(-1)),nativeEvent:{getCoalescedEvents:()=>indices.slice(1,-1).map(point)}})
+   else for(const i of indices.slice(1))handlers.onPointerMove(event('pointermove',i))
+ }
+ handlers.onPointerEnd(event(cancel?'pointercancel':'pointerup',indices.at(-1)))
+}
+for(const [size,config] of [[4,{level:1}],[6,{level:2}],[8,{level:5}],[9,{daily:true}]]) {
+ for(const kind of ['mouse','touch'])test(`${size}x${size} ${kind}: fast row, column and both diagonal drags lose no Xs`,async()=>{
+   const paths=[Array.from({length:size},(_,i)=>i),Array.from({length:size},(_,i)=>i*size),Array.from({length:size},(_,i)=>i*(size+1)),Array.from({length:size},(_,i)=>(i+1)*(size-1))]
+   for(const expected of paths)for(const reverse of [false,true]){
+     const f=await fixture({...config,storage:new Map([['bunoku.level1TutorialComplete','true']])})
+     const path=reverse?expected.toReversed():expected
+     stroke(f,[path[0],path.at(-1)],{kind})
+     assert.deepEqual(Array.from(f.slots[1].cells).flatMap((c,i)=>c==='mark'?[i]:[]),expected.toSorted((a,b)=>a-b))
+     assert.equal(f.sounds.filter(s=>s==='Xon').length,size)
+     assert(!f.slots[1].cells.includes('rabbit'));assert.equal(f.slots[1].lives,3)
+   }
+ })
+ test(`${size}x${size}: coalesced snake, revisits, final-up and Undo preserve every action`,async()=>{
+   const f=await fixture({...config,storage:new Map([['bunoku.level1TutorialComplete','true']])})
+   const snake=Array.from({length:size},(_,r)=>Array.from({length:size},(_,c)=>r*size+(r%2?size-1-c:c))).flat()
+   stroke(f,[...snake,...snake.toReversed()],{coalesced:true})
+   assert(f.slots[1].cells.every(c=>c==='mark'))
+   assert.equal(f.sounds.filter(s=>s==='Xon').length,size*size,'one sound/history action per new cell, including revisits')
+   f.controls().onUndo()
+   assert.equal(f.slots[1].cells.filter(c=>c==='mark').length,size*size-1)
+   const fresh=await fixture({...config,storage:new Map([['bunoku.level1TutorialComplete','true']])})
+   stroke(fresh,[0,size*(size-1)],{upOnly:true})
+   assert.equal(fresh.slots[1].cells.filter(c=>c==='mark').length,size,'pointerup fills final unsampled segment')
+   fresh.wait();fresh.tap(1,'touch');assert.equal(fresh.slots[1].cells[1],'mark','tap following drag never places a rabbit')
+ })
+}
+test('touch drag preserves rabbits, locked carrots and existing Xs; cancellation never places a rabbit',async()=>{
+ const f=await fixture({level:2}),rabbit=f.puzzle.solution[0],row=Math.floor(rabbit/f.puzzle.size)
+ f.double(rabbit,'touch');f.wait()
+ const failed=row*f.puzzle.size+(rabbit%f.puzzle.size+1)%f.puzzle.size
+ f.double(failed,'touch');f.wait()
+ const before=Array.from(f.slots[1].cells),sounds=f.sounds.length
+ stroke(f,[row*f.puzzle.size,row*f.puzzle.size+f.puzzle.size-1])
+ assert.equal(f.slots[1].cells[rabbit],'rabbit');assert.equal(f.slots[1].cells[failed],'empty');assert.equal(f.slots[1].lives,2)
+ assert(!f.sounds.slice(sounds).includes('failbite'))
+ assert(before.every((c,i)=>c!=='mark'||i===row*f.puzzle.size||f.slots[1].cells[i]==='mark'))
+ const cancelled=await fixture({level:2});stroke(cancelled,[0,5],{cancel:true});cancelled.tap(0,'touch')
+ assert(!cancelled.slots[1].cells.includes('rabbit'))
 })

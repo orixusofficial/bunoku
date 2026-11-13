@@ -11,7 +11,9 @@ import '../../src/index.css'
 import '../../src/App.css'
 
 const params = new URLSearchParams(location.search), daily = params.has('daily')
-const puzzle = daily ? createDailyPuzzle() : createPuzzle(10)
+const gridSize = Number(params.get('size') || 9)
+localStorage.setItem('bunoku.level1TutorialComplete','true')
+const puzzle = daily ? createDailyPuzzle() : createPuzzle(gridSize === 4 ? 1 : gridSize === 6 ? 2 : gridSize === 8 ? 5 : 10)
 let saved
 if (daily) { localStorage.removeItem('bunoku.allowances.v1'); allowances.startDaily(10, initialDailyProgress(puzzle)); saved = allowances.dailyAttempt() }
 const Component = params.has('baseline') ? Baseline : GameScreen
@@ -45,4 +47,18 @@ document.getElementById('burst')!.onclick=()=>{
     event('pointerup',80,true)
   })
   result({burst:true,marks:document.querySelectorAll('.cell-mark').length,rabbits:document.querySelectorAll('.cell-rabbit').length})
+}
+
+
+const pathButton = document.createElement('button')
+pathButton.textContent = 'Test sparse drag path'
+panel.prepend(pathButton)
+pathButton.onclick = () => {
+ const n=puzzle.size, direction=params.get('direction')||'horizontal'
+ const indices=Array.from({length:n},(_,i)=>direction==='vertical'?i*n:direction==='diagonal'?i*(n+1):direction==='anti'? (i+1)*(n-1):i)
+ const center=i=>{const r=cell(i).getBoundingClientRect();return {clientX:r.x+r.width/2,clientY:r.y+r.height/2}}
+ const fire=(type,i)=>cell(indices[0]).dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:71,pointerType:'touch',button:0,buttons:type==='pointerup'?0:1,...center(i)}))
+ flushSync(()=>{fire('pointerdown',indices[0]);fire('pointermove',indices.at(-1));fire('pointerup',indices.at(-1))})
+ const actual=[...document.querySelectorAll('.cell-mark')].map(c=>Number(c.dataset.cellIndex))
+ result({size:n,direction,expected:indices,actual,pass:JSON.stringify(indices.toSorted((a,b)=>a-b))===JSON.stringify(actual),rabbits:document.querySelectorAll('.cell-rabbit').length})
 }
