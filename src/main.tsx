@@ -1,8 +1,9 @@
+import { initializeLanguage } from './i18n'
 import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { beginLoading, initializeCrazyGames } from './crazygames.ts'
+import { beginLoading, initializeCrazyGames, sdkLocale } from './crazygames.ts'
 
 const finishLoading = beginLoading()
 function Ready() {
@@ -10,8 +11,8 @@ function Ready() {
   return <App />
 }
 
-void initializeCrazyGames().then(() => createRoot(document.getElementById('root')!).render(
+void initializeCrazyGames().then(() => { initializeLanguage(sdkLocale()); return createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Ready />
   </StrictMode>,
-))
+) })

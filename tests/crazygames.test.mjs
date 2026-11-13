@@ -4,18 +4,19 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
-const source = fs.readFileSync(new URL('../src/crazygames.ts', import.meta.url), 'utf8').replaceAll('import.meta.hot', 'false')
+const source = fs.readFileSync(new URL('../src/crazygames.ts', import.meta.url), 'utf8').replaceAll('import.meta.hot', 'false').replaceAll('import.meta.env?.DEV', 'true')
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
 const tick = () => new Promise(resolve => queueMicrotask(resolve))
 function fixture(environment = 'local', reject = false, ad) {
-  const events = [], mutes = []
+  const events = [], mutes = [], logs = []
   let listener, inits = 0
   const game = { settings: { muteAudio: true }, addSettingsChangeListener(fn) { listener = fn }, removeSettingsChangeListener() {} }
   for (const event of ['gameplayStart', 'gameplayStop', 'loadingStart', 'loadingStop']) game[event] = () => events.push(event)
   const SDK = { environment, game, ad, async init() { inits++; if (reject) throw Error('offline') } }
+  const browserWindow = { CrazyGames: { SDK }, confirm: () => { assert.equal(events.at(-1), 'gameplayStop'); return true } }
   const module = { exports: {} }
-  vm.runInNewContext('(function(require,exports){' + code + '})', { window: { CrazyGames: { SDK }, confirm: () => { assert.equal(events.at(-1), 'gameplayStop'); return true } }, queueMicrotask, setTimeout, clearTimeout, console: { warn() {} } })(() => ({ setPlatformMuted: v => mutes.push(v), setAdMuted: v => mutes.push(v) }), module.exports)
-  return { api: module.exports, events, mutes, get inits() { return inits }, change: v => listener({ muteAudio: v }) }
+  vm.runInNewContext('(function(require,exports){' + code + '})', { window: browserWindow, document: { getElementById: () => null }, queueMicrotask, setTimeout, clearTimeout, console: { warn() {}, info(...args) { logs.push(args) } } })(() => ({ setPlatformMuted: v => mutes.push(v), setAdMuted: v => mutes.push(v) }), module.exports)
+  return { api: module.exports, events, mutes, logs, window: browserWindow, SDK, get inits() { return inits }, change: v => listener({ muteAudio: v }) }
 }
 test('initializes once; balanced loading; menu/pause/end/restart transitions; coalesces StrictMode', async () => {
   const f = fixture(), endLoad = f.api.beginLoading()
@@ -78,29 +79,41 @@ test('rewarded success grants once; pending request does not mute; duplicate req
   stop(); await tick()
 })
 
-test('adsDisabled response hides later reward requests for the session and never grants', async () => {
+test('adsDisabled is returned faithfully; a manual later attempt reaches the SDK and never grants', async () => {
   let callbacks, requests = 0, grants = 0
   const f = fixture('crazygames', false, { requestAd(_type, cb) { requests++; callbacks = cb } })
   await f.api.initializeCrazyGames()
   assert.equal(f.api.adsAvailable(), true)
   const result = f.api.requestRewardedAd(() => { grants++; return true })
   callbacks.adError({ code: 'adsDisabled', message: 'Basic Launch' })
-  assert.equal(await result, 'unavailable')
-  assert.equal(f.api.adsAvailable(), false)
-  assert.equal(await f.api.requestRewardedAd(() => { grants++; return true }), 'unavailable')
-  assert.equal(requests, 1)
+  assert.equal(await result, 'adsDisabled')
+  assert.equal(f.api.adsAvailable(), true)
+  const again=f.api.requestRewardedAd(() => { grants++; return true }); callbacks.adError({code:'adsDisabled'}); assert.equal(await again,'adsDisabled')
+  assert.equal(requests, 2)
   assert.equal(grants, 0)
 })
 
-test('ads cannot be requested from active gameplay or while a puzzle is loading', async () => {
-  const f = fixture('local', false, { requestAd() { assert.fail('ad requested during gameplay/loading') } })
+test('Hint/Undo requests during gameplay use official SDK callbacks; puzzle loading still blocks requests',async()=>{
+ let callbacks,calls=0,credits=0
+ const f=fixture('local',false,{requestAd(type,cb){assert.equal(type,'rewarded');calls++;callbacks=cb}})
+ await f.api.initializeCrazyGames();const stop=f.api.trackGameplay(true);await tick()
+ const first=f.api.requestRewardedAd(()=>{credits+=3;return true})
+ assert.equal(await f.api.requestRewardedAd(()=>true),'busy')
+ callbacks.adStarted();callbacks.adFinished();callbacks.adFinished();assert.equal(await first,'rewarded')
+ const second=f.api.requestRewardedAd(()=>{credits+=3;return true})
+ callbacks.adStarted();callbacks.adFinished();assert.equal(await second,'rewarded');assert.equal(calls,2);assert.equal(credits,6)
+ stop();const end=f.api.beginLoading();assert.equal(await f.api.requestRewardedAd(()=>true),'unavailable');end()
+})
+for(const code of ['adsDisabled','adblock','adCooldown','unfilled']) test(`${code}: no reward, audio recovers and ordinary gameplay can resume`,async()=>{
+  let callbacks, grants=0
+  const f=fixture('local',false,{requestAd(_type,cb){callbacks=cb}})
   await f.api.initializeCrazyGames()
-  const stop = f.api.trackGameplay(true); await tick()
-  assert.equal(await f.api.requestRewardedAd(() => assert.fail('unexpected reward')), 'unavailable')
-  stop(); await tick()
-  const finish = f.api.beginLoading(); await tick()
-  assert.equal(await f.api.requestRewardedAd(() => assert.fail('unexpected reward')), 'unavailable')
-  finish(); await tick()
+  const result=f.api.requestRewardedAd(()=>{grants++;return true})
+  callbacks.adStarted();callbacks.adError({code});callbacks.adFinished()
+  assert.equal(await result,code);assert.equal(grants,0);assert.equal(f.mutes.at(-1),false)
+  assert.equal(f.api.adsAvailable(),true,'no custom cooldown or permanent error latch')
+  const retry=f.api.requestRewardedAd(()=>{grants++;return true});callbacks.adError({code});assert.equal(await retry,code);assert.equal(grants,0)
+  const stop=f.api.trackGameplay(true);await tick();assert.equal(f.events.at(-1),'gameplayStart');stop()
 })
 
 test('ad errors, unfilled, cancelled, disabled and failed reward saves grant nothing and recover', async () => {
@@ -112,11 +125,34 @@ test('ad errors, unfilled, cancelled, disabled and failed reward saves grant not
     if (mode === 'started-error' || mode === 'save-error') callbacks.adStarted()
     if (mode === 'save-error' || mode === 'cancelled') callbacks.adFinished()
     else if (mode !== 'rejected') callbacks.adError({ code: 'unfilled' })
-    assert.equal(await result, mode === 'save-error' ? 'save-error' : 'unavailable')
+    assert.equal(await result, mode === 'save-error' ? 'save-error' : ['cancelled','rejected'].includes(mode) ? 'unavailable' : 'unfilled')
     callbacks.adFinished(); callbacks.adStarted(); assert.equal(credits, 0)
     const stop = f.api.trackGameplay(true); await tick(); assert.equal(f.events.at(-1), 'gameplayStart'); stop(); await tick()
   }
   const disabled = fixture('disabled', false, { requestAd() { assert.fail('disabled SDK ad call') } })
   await disabled.api.initializeCrazyGames()
   assert.equal(await disabled.api.requestRewardedAd(() => assert.fail('disabled SDK reward')), 'unavailable')
+})
+
+
+test('a script timeout does not permanently poison initialization; a later real SDK can initialize before a request',async()=>{
+  let grant=0
+  const f=fixture('local',false,{requestAd(_type,cb){cb.adStarted();cb.adFinished()}})
+  delete f.window.CrazyGames
+  await f.api.initializeCrazyGames()
+  assert.equal(f.inits,0)
+  f.window.CrazyGames={SDK:f.SDK}
+  assert.equal(await f.api.requestRewardedAd(()=>{grant++;return true}),'rewarded')
+  assert.equal(f.inits,1);assert.equal(grant,1)
+  assert(f.logs.some(log=>log[1].includes('initialization failed')))
+  assert(f.logs.some(log=>log[1]==='initialization completed'))
+})
+test('a request waits for initialization and logs the actual SDK error without granting',async()=>{
+  let ready=false,calls=0,grants=0
+  const f=fixture('local',false,{requestAd(type,cb){assert(ready);assert.equal(type,'rewarded');calls++;cb.adError({code:'unfilled',message:'No inventory available'})}})
+  f.SDK.init=async()=>{await tick();ready=true}
+  const pending=f.api.requestRewardedAd(()=>{grants++;return true})
+  assert.equal(await f.api.requestRewardedAd(()=>true),'busy')
+  assert.equal(await pending,'unfilled');assert.equal(calls,1);assert.equal(grants,0)
+  assert(f.logs.some(log=>log[1]==='adError'&&log[2].includes('unfilled')&&log[2].includes('No inventory available')))
 })

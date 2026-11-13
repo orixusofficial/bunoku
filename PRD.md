@@ -90,8 +90,7 @@ Do not implement future features before the core game works.
 ### Persistent allowances and optional rewards
 
 - Each player has five lifetime free Hint uses and five lifetime free Undo uses. A successful hint preview or actual Undo consumes one use. Invalid actions, level changes, Restart and Undo never replenish an allowance.
-- After the free allowance, the corresponding action spends one saved reward credit. Exhausted controls display a small video icon and an informational message, never an ad request.
-- A separate Rewards screen, reached from the main menu, offers one optional rewarded advertisement for three Hint credits OR three Undo credits after completing at least one puzzle. The continue-without-ad control uses the same button styling. Successful rewards have a visible 60-second offer cooldown.
+- After the free allowance, the corresponding action spends one saved reward credit. Control badges show free uses plus saved credits; zero displays a small video icon. Depleted Hint and Undo controls directly request a CrazyGames rewarded ad. A completed ad grants three uses of that action without consuming any automatically.
 - CrazyGames SDK v3 rewarded callbacks alone control the outcome. Audio is muted and SDK gameplay suspended only after adStarted, and restored after completion/error. Only a completed started ad grants credits; errors, missing ads, cancelled requests and duplicate callbacks grant nothing. The UI remains blocked during the SDK request until a terminal callback; an arbitrary timeout cannot safely cancel an SDK ad that might still start.
 - New balances and Daily timestamps use a versioned localStorage record, preserving existing level progress and audio preferences. Failed persistence blocks scarce actions rather than silently replenishing uses. This setup has not enabled CrazyGames Data cloud saving. Client clock rollback is handled with a saved high-water clock plus elapsed session time; clearing storage or deliberately changing the clock across reloads cannot be secured without a trusted service.
 
@@ -221,3 +220,11 @@ Design requirements:
 - Use large, readable text for instructions and buttons.
 
 Nunito is the primary font throughout Bunoku.
+
+### Submission persistence and localization
+
+- Daily Puzzle saves its verified layout, placed rabbits, manual marks, remaining lives, failed cells, Hint preview/history, Undo history and combo count with the start timestamp in one ledger record. Resume restores the same unfinished attempt after refresh or Main Menu navigation, even after the cooldown expires. Finished attempts cannot resume and remain locked until the original 24-hour cooldown expires.
+- SDK adCooldown, unfilled, adsDisabled and adblock outcomes are logged and returned separately. They grant nothing, restore audio, and do not set a custom timer or permanent application lock. A later player attempt asks the SDK again; SDK restrictions remain authoritative.
+- With no saved valid language preference, use SDK v3 user.systemInfo.locale, normalize supported language variants, and fall back to English. Manual selection overrides SDK locale on later launches.
+
+- The Rewards page and its menu navigation have been removed. Direct gameplay ad requests are a product choice that conflicts with the previously reviewed CrazyGames placement requirement and need platform review before submission.

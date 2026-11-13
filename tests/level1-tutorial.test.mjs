@@ -8,7 +8,7 @@ import {createAllowances} from '../src/game/allowances.ts';
 const source=fs.readFileSync(new URL('../src/components/GameScreen.tsx',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 let fixtureId=0;
-async function fixture({daily=false,level=1,storage=new Map()}={}){
+async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Promise.resolve('unavailable')}={}){
  globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};
  const allowance=createAllowances(()=>({getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)}));
  const tutorial=await import('../src/game/tutorial.ts?fixture='+fixtureId++);
@@ -16,7 +16,7 @@ async function fixture({daily=false,level=1,storage=new Map()}={}){
  let slots=[],cursor=0,clock=1000;const sounds=[],timers=[],requestedRewards=[];
  const react={useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i]},useEffect(){cursor++}};
  const jsx=(type,props)=>({type,props}),module={exports:{}};
- const req=n=>n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
+ const req=n=>n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true,requestRewardedAd:adRequest}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
  vm.runInNewContext('(function(require,module,exports){'+js+'})',{localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
  const props={initialPuzzle:puzzle,daily,onMenu(){},onRequestReward(kind){requestedRewards.push(kind)},rewardAction:null,musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
  const render=()=>{cursor=0;return module.exports.default(props)};
@@ -61,10 +61,28 @@ test('real Hint/Undo handlers spend only successful uses and never refund on Res
  const f=await fixture({level:2});
  f.controls().onUndo(); assert.equal(f.allowance.status().undoFree,5);
  for(let i=0;i<5;i++){f.controls().onHint();assert.notEqual(f.board().hintCell,null);f.controls().onRestart();assert.equal(f.allowance.status().hintFree,4-i)}
- f.controls().onHint();assert.equal(f.board().hintCell,null);assert.equal(f.allowance.status().hintFree,0);assert.deepEqual(f.requestedRewards,['hint']);
+ f.controls().onHint();assert.equal(f.board().hintCell,null);assert.equal(f.allowance.status().hintFree,0);assert.deepEqual(f.requestedRewards,[]);await new Promise(setImmediate);
  for(let i=0;i<5;i++){f.tap(0);f.controls().onUndo();assert.equal(f.slots[1].cells[0],'empty');assert.equal(f.allowance.status().undoFree,4-i);f.wait()}
  f.tap(0);f.controls().onUndo();assert.equal(f.slots[1].cells[0],'mark');assert.equal(f.allowance.status().undoFree,0);
- f.controls().onRestart();const reload=await fixture({level:2,storage:f.storage});assert.equal(reload.allowance.status().hintFree,0);assert.equal(reload.allowance.status().undoFree,0);
- assert.equal(reload.allowance.grant('hint','ad'),true);reload.controls().onHint();assert.equal(reload.allowance.status().hintCredits,0);
+ await new Promise(setImmediate);f.controls().onRestart();const reload=await fixture({level:2,storage:f.storage});assert.equal(reload.allowance.status().hintFree,0);assert.equal(reload.allowance.status().undoFree,0);
+ assert.equal(reload.allowance.grant('hint','ad'),true);reload.controls().onHint();assert.equal(reload.allowance.status().hintCredits,2);
  const daily=await fixture({daily:true});daily.tap(0);const before=[...daily.slots[1].cells];daily.controls().onRestart();assert.deepEqual(Array.from(daily.slots[1].cells),before,'Daily restart cannot replay an attempt');
 });
+
+for(const kind of ['hint','undo']) test(`${kind}: zero balance requests once, grants 3 without consuming, retries after errors`,async()=>{
+ let calls=0,grant,finish
+ const f=await fixture({level:2,adRequest:reward=>{calls++;grant=reward;return new Promise(resolve=>finish=resolve)}})
+ for(let i=0;i<5;i++)f.allowance.consume(kind)
+ const action=()=>f.controls()[kind==='hint'?'onHint':'onUndo']()
+ action();action();assert.equal(calls,1)
+ finish('adCooldown');await new Promise(setImmediate)
+ assert.equal(f.allowance.status()[kind+'Credits'],0)
+ action();assert.equal(calls,2);assert(grant());finish('rewarded');await new Promise(setImmediate)
+ assert.equal(f.allowance.status()[kind+'Credits'],3);assert.equal(f.board().hintCell,null)
+ assert(f.slots[1].cells.every(c=>c==='empty'))
+ if(kind==='undo')f.tap(0)
+ action();assert.equal(f.allowance.status()[kind+'Credits'],2)
+ f.allowance.consume(kind);f.allowance.consume(kind);action();assert.equal(calls,3,'no custom cooldown blocks the next request')
+ finish('unfilled');await new Promise(setImmediate)
+ assert.equal(f.allowance.status()[kind+'Credits'],0)
+})

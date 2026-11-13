@@ -26,7 +26,7 @@ test('Daily unlocks only after completing Level 10, one start per 24h across rel
   f.advance(DAY - 1); assert.equal(f.reload().startDaily(10), false)
   f.advance(1); assert.equal(f.reload().startDaily(10), true)
 })
-test('five free uses for each action, persistent independently; each rewarded ad adds one selected use', () => {
+test('five free uses for each action, persistent independently; each rewarded ad adds three selected uses', () => {
   const f = fixture(), a = f.reload()
   for (const kind of ['hint', 'undo']) {
     for (let i = 0; i < 5; i++) assert.equal(f.reload().consume(kind), true)
@@ -34,12 +34,12 @@ test('five free uses for each action, persistent independently; each rewarded ad
   }
   assert.equal(a.grant('hint', 'ad-1'), true)
   assert.equal(a.grant('hint', 'ad-1'), false)
-  assert.equal(a.grant('undo', 'ad-2'), false) // visible offer cooldown
-  assert.equal(a.status().hintCredits, 1); assert.equal(a.status().undoCredits, 0)
-  assert.equal(f.reload().consume('hint'), true)
+  assert.equal(a.grant('undo', 'ad-2'), true) // SDK, not a custom timer, controls ad frequency
+  assert.equal(a.status().hintCredits, 3); assert.equal(a.status().undoCredits, 3)
+  for (let i=0;i<3;i++) assert.equal(f.reload().consume('hint'), true)
   assert.equal(a.consume('hint'), false)
-  f.advance(60000); assert.equal(a.grant('undo', 'ad-2'), true)
-  assert.equal(f.reload().status().undoCredits, 1)
+  assert.equal(a.grant('undo', 'ad-2'), false)
+  assert.equal(f.reload().status().undoCredits, 3)
   assert.equal(f.reload().status().hintFree, 0)
 })
 test('clock rollback cannot reset cooldown; monotonic elapsed time and high water survive reload', () => {
@@ -58,4 +58,13 @@ test('failed writes and corrupt records never replenish allowances or grant atte
   assert.equal(f.reload().consume('hint'), false)
   const a = createAllowances(() => ({ getItem: () => null, setItem() { throw Error('blocked') } }))
   assert.equal(a.consume('undo'), false); assert.equal(a.startDaily(10), false); assert.equal(a.grant('hint', 'x'), false)
+})
+
+test('legacy saved reward timestamp never blocks a new SDK-completed reward or resets balances',()=>{
+ const f=fixture(),a=f.reload()
+ assert(a.grant('hint','one'))
+ const saved=JSON.parse(f.values.get(ALLOWANCE_KEY));saved.rewardAvailableAt=f.time+180000;f.values.set(ALLOWANCE_KEY,JSON.stringify(saved))
+ assert.equal(f.reload().status().rewardRemaining,0)
+ assert(f.reload().grant('undo','two'));assert.equal(a.status().hintCredits,3);assert.equal(a.status().undoCredits,3)
+ assert.equal(a.grant('undo','two'),false)
 })

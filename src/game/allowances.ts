@@ -1,10 +1,13 @@
 export type RewardKind = 'hint' | 'undo'
+import { validDailyProgress } from './dailyState.ts'
+import type { DailyProgress } from './dailyState.ts'
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
 export const ALLOWANCE_KEY = 'bunoku.allowances.v1'
 export const DAY = 24 * 60 * 60 * 1000
 type Ledger = {
   hintUsed: number; undoUsed: number; hintCredits: number; undoCredits: number
   dailyStarted: number; clock: number; lastRewardId: string; rewardAvailableAt: number
+  dailyAttempt?: DailyProgress
 }
 const fresh = (): Ledger => ({ hintUsed: 0, undoUsed: 0, hintCredits: 0, undoCredits: 0, dailyStarted: 0, clock: 0, lastRewardId: '', rewardAvailableAt: 0 })
 
@@ -47,7 +50,7 @@ export function createAllowances(storage: () => StorageLike, wall = Date.now, mo
         const data = read(), time = now(data)
         // Retain elapsed time during clock rollback across reloads. Never move the clock backward.
         if (time - data.clock >= 60000) { data.clock = time; storage().setItem(ALLOWANCE_KEY, JSON.stringify(data)) }
-        return { available: true, hintFree: 5 - data.hintUsed, undoFree: 5 - data.undoUsed, hintCredits: data.hintCredits, undoCredits: data.undoCredits, dailyRemaining: data.dailyStarted ? Math.max(0, data.dailyStarted + DAY - time) : 0, rewardRemaining: Math.max(0, data.rewardAvailableAt - time) }
+        return { available: true, hintFree: 5 - data.hintUsed, undoFree: 5 - data.undoUsed, hintCredits: data.hintCredits, undoCredits: data.undoCredits, dailyRemaining: data.dailyStarted ? Math.max(0, data.dailyStarted + DAY - time) : 0, rewardRemaining: 0 }
       } catch { return { available: false, hintFree: 0, undoFree: 0, hintCredits: 0, undoCredits: 0, dailyRemaining: 0, rewardRemaining: 0 } }
     },
     consume(kind: RewardKind) {
@@ -59,19 +62,32 @@ export function createAllowances(storage: () => StorageLike, wall = Date.now, mo
         return true
       })
     },
-    startDaily(completedLevels: number) {
+    dailyAttempt() {
+      try { const data = read(); return data.dailyAttempt && data.dailyAttempt.started === data.dailyStarted && validDailyProgress(data.dailyAttempt) ? data.dailyAttempt : null } catch { return null }
+    },
+    saveDaily(attempt: DailyProgress) {
+      return update(data => {
+        if (!data.dailyAttempt || data.dailyStarted !== attempt.started || data.dailyAttempt.finished || !validDailyProgress(attempt)) return false
+        data.dailyAttempt = attempt
+        return true
+      })
+    },
+    startDaily(completedLevels: number, attempt?: DailyProgress) {
       return update((data, time) => {
+        if (data.dailyAttempt && !data.dailyAttempt.finished) return false
         if (completedLevels < 10 || (data.dailyStarted && time < data.dailyStarted + DAY)) return false
+        if (attempt && !validDailyProgress(attempt)) return false
         data.dailyStarted = time
+        data.dailyAttempt = attempt ? { ...attempt, started: time } : undefined
         return true
       })
     },
     grant(kind: RewardKind, id: string) {
-      return update((data, time) => {
-        if (!id || data.lastRewardId === id || time < data.rewardAvailableAt) return false
-        data[kind === 'hint' ? 'hintCredits' : 'undoCredits'] += 1
+      return update((data) => {
+        if (!id || data.lastRewardId === id) return false
+        data[kind === 'hint' ? 'hintCredits' : 'undoCredits'] += 3
         data.lastRewardId = id
-        data.rewardAvailableAt = time + 60000
+        data.rewardAvailableAt = 0
         return true
       })
     },

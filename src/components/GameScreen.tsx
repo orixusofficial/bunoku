@@ -1,8 +1,9 @@
+import RewardIcon from './RewardIcon'
+import type { DailyProgress } from '../game/dailyState.ts'
 import { DailyCountdown } from './DailyAccess'
-import { trackGameplay, confirmDuringGameplay } from '../crazygames.ts'
+import { trackGameplay, confirmDuringGameplay, requestRewardedAd, logAdDiagnostic } from '../crazygames.ts'
 import { allowances } from '../game/allowances.ts'
 import { useAllowances } from '../useAllowances'
-import RewardIcon from './RewardIcon'
 import { assetUrl } from '../assetUrl.ts'
 import MainMenuConfirmation from './MainMenuConfirmation'
 import { t, translatedError } from '../i18n'
@@ -53,7 +54,7 @@ function ControlIcon({ name }: { name: 'hint' | 'undo' | 'restart' }) {
 function BottomControls({ onHint, onUndo, onRestart, canUndo, tutorialStep = 0, restoreKeyboardFocus }: { onHint: () => void; onUndo: () => void; onRestart: () => void; canUndo: boolean; tutorialStep?: TutorialStep; restoreKeyboardFocus: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
   const balance = useAllowances()
   const count = (remaining: number, kind: string) => remaining > 0 ? <span className="control-count" aria-label={t("{count} {kind} remaining", { count: remaining, kind })}>{remaining}</span> : <RewardIcon/>
-  return <nav className="controls" aria-label={t("Puzzle controls")}><button className={`control-button${tutorialStep === 4 ? ' tutorial-hint' : ''}`} onClick={(event) => { onHint(); restoreKeyboardFocus(event) }} disabled={tutorialStep >= 1 && tutorialStep <= 3}><ControlIcon name="hint"/><span>{t("Hint")}</span>{count(balance.hintFree + balance.hintCredits, t("Hints"))}</button><button className="control-button" onClick={(event) => { onUndo(); restoreKeyboardFocus(event) }} disabled={!canUndo}><ControlIcon name="undo"/><span>{t("Undo")}</span>{count(balance.undoFree + balance.undoCredits, t("Undos"))}</button><button className="control-button" onClick={(event) => { onRestart(); restoreKeyboardFocus(event) }}><ControlIcon name="restart"/><span>{t("Restart")}</span></button></nav>
+  return <nav className="controls" aria-label={t("Puzzle controls")}><button className={`control-button${tutorialStep === 4 ? ' tutorial-hint' : ''}`} onClick={(event) => { onHint(); restoreKeyboardFocus(event) }} disabled={tutorialStep >= 1 && tutorialStep <= 3}><ControlIcon name="hint"/><span>{t("Hint")}</span>{count(balance.hintFree + balance.hintCredits, t("Hints"))}</button><button className="control-button" onClick={(event) => { onUndo(); restoreKeyboardFocus(event) }} disabled={!canUndo && balance.undoFree + balance.undoCredits > 0}><ControlIcon name="undo"/><span>{t("Undo")}</span>{count(balance.undoFree + balance.undoCredits, t("Undos"))}</button><button className="control-button" onClick={(event) => { onRestart(); restoreKeyboardFocus(event) }}><ControlIcon name="restart"/><span>{t("Restart")}</span></button></nav>
 }
 
 function TutorialPrompt({ step, onSkip, onContinue }: { step: TutorialStep; onSkip: () => void; onContinue: () => void }) {
@@ -61,26 +62,26 @@ function TutorialPrompt({ step, onSkip, onContinue }: { step: TutorialStep; onSk
   return <section className="tutorial-prompt" aria-label={t('Getting started')}><p>{t(instructions[step])}</p>{step === 2 && <p className="tutorial-explanation">{t('These highlighted boxes cannot contain a rabbit. Click one to mark it with X.')}</p>}{step === 3 && <div className="tutorial-drag-demo" aria-hidden="true">{[0, 1, 2].map((i) => <span key={i} style={{ '--demo-order': i } as CSSProperties}>×</span>)}<i>→</i></div>}{step < 5 && <div className="tutorial-actions-row">{step === 4 && <button className="text-button" onClick={onContinue}>{t('Continue')}</button>}<button className="text-button" onClick={onSkip}>{t('Skip Tutorial')}</button></div>}</section>
 }
 
-export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onMenu, onRequestReward, daily = false, initialPuzzle, active = true }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onMenu: () => void; onRequestReward: (kind: 'hint' | 'undo') => void; daily?: boolean; active?: boolean; initialPuzzle: PuzzleDefinition }) {
+export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onMenu, daily = false, initialDailyProgress, initialPuzzle, active = true }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onMenu: () => void; initialDailyProgress?: DailyProgress | null; daily?: boolean; active?: boolean; initialPuzzle: PuzzleDefinition }) {
   const [puzzle, setPuzzle] = useState(initialPuzzle)
-  const [board, setBoard] = useState<BoardState>(() => createInitialState(puzzle))
-  const [history, setHistory] = useState<BoardState[]>([])
-  const [failureHistory, setFailureHistory] = useState<FailedCellAnimation[][]>([])
+  const [board, setBoard] = useState<BoardState>(() => initialDailyProgress?.board ?? createInitialState(puzzle))
+  const [history, setHistory] = useState<BoardState[]>(initialDailyProgress?.history ?? [])
+  const [failureHistory, setFailureHistory] = useState<FailedCellAnimation[][]>(initialDailyProgress?.failureHistory ?? [])
   const [notice, setNotice] = useState('')
-  const [hintCell, setHintCell] = useState<number | null>(null)
-  const [usedHints, setUsedHints] = useState<number[]>([])
-  const [failures, setFailures] = useState<FailedCellAnimation[]>([])
+  const [hintCell, setHintCell] = useState<number | null>(initialDailyProgress?.hintCell ?? null)
+  const [usedHints, setUsedHints] = useState<number[]>(initialDailyProgress?.usedHints ?? [])
+  const [failures, setFailures] = useState<FailedCellAnimation[]>(initialDailyProgress?.failures ?? [])
   const [celebrations, setCelebrations] = useState<Celebration[]>([])
   const celebrationId = useRef(0)
-  const combo = useRef(0)
+  const combo = useRef(initialDailyProgress?.combo ?? 0)
   const drawing = useRef<{ pointerId: number; visited: Set<number>; touch: boolean; index: number; x: number; y: number; dragged: boolean } | null>(null)
   const lastTouchTap = useRef<{ index: number; time: number } | null>(null)
   const touchInput = useRef(false)
-  const failureId = useRef(0)
+  const failureId = useRef(Math.max(0, ...(initialDailyProgress?.failures.map(f=>f.id) ?? [])))
   const failureTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   const failureAudios = useRef<Set<HTMLAudioElement>>(new Set())
   const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [endScreenReady, setEndScreenReady] = useState(false)
+  const [endScreenReady, setEndScreenReady] = useState(initialDailyProgress?.finished ?? false)
   const [preparingPuzzle, setPreparingPuzzle] = useState(false)
   const [generationError, setGenerationError] = useState('')
   const generationAbort = useRef<AbortController | null>(null)
@@ -96,7 +97,15 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const [keyboardSelection, setKeyboardSelection] = useState<number | null>(null)
   const brush = useRef({ held: false, visited: new Set<number>() })
   const [menuConfirmation, setMenuConfirmation] = useState(false)
-  useEffect(() => trackGameplay(active && !completed && !gameOver && !preparingPuzzle && !menuConfirmation), [active, completed, gameOver, preparingPuzzle, menuConfirmation])
+  const rewardPending = useRef(false)
+  const [rewardBusy, setRewardBusy] = useState(false)
+  useEffect(() => trackGameplay(active && !completed && !gameOver && !preparingPuzzle && !menuConfirmation && !rewardBusy), [active, completed, gameOver, preparingPuzzle, menuConfirmation, rewardBusy])
+
+  useEffect(() => {
+    if (!daily || !initialDailyProgress) return
+    const saved = allowances.saveDaily({ puzzle, board, history, failureHistory, failures, hintCell, usedHints, combo: combo.current, started: initialDailyProgress.started, finished: completed || gameOver })
+    if (!saved && !allowances.dailyAttempt()?.finished) setNotice('Your progress could not be saved. Please check browser storage.')
+  }, [daily, puzzle, board, history, failureHistory, failures, hintCell, usedHints, completed, gameOver])
 
   const finishTutorial = (skip = false) => { saveTutorialComplete(); setTutorialProgress(skip ? 0 : 5); lastTouchTap.current = null; drawing.current = null }
 
@@ -122,7 +131,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
 
   const commit = (next: BoardState) => { setHistory((items) => [...items, board]); setFailureHistory((items) => [...items, [...failures]]); setBoard(next); setHintCell(null); setNotice('') }
   const placeRabbit = (index: number) => {
-    if (menuConfirmation) return
+    if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || tutorialStep === 2 || tutorialStep === 3) return
     if (failures.some((failure) => failure.index === index)) return
@@ -155,7 +164,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     else if (tutorialStep === 4) finishTutorial()
   }
   const markCell = (index: number, drawingAcross = false) => {
-    if (menuConfirmation) return
+    if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || ((tutorialStep === 2 || tutorialStep === 3) && !blockedTutorialCells.includes(index))) return
     if (failures.some((failure) => failure.index === index)) return
@@ -208,13 +217,25 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
       placeRabbit(gesture.index)
     } else lastTouchTap.current = { index: gesture.index, time: event.timeStamp }
   }
+  const requestUses = async (kind: 'hint' | 'undo') => {
+    if (rewardPending.current) return
+    logAdDiagnostic?.('control requests reward', { kind })
+    rewardPending.current = true; setRewardBusy(true)
+    setNotice('Loading an optional video…')
+    const id = globalThis.crypto?.randomUUID?.() ?? `ad-${Date.now()}-${Math.random()}`
+    try {
+      const result = await requestRewardedAd(() => allowances.grant(kind, id))
+      setNotice(result === 'rewarded' ? (kind === 'hint' ? 'You received 3 Hint credits!' : 'You received 3 Undo credits!') : 'The ad is unavailable. You can keep playing.')
+    } catch { setNotice('The ad is unavailable. You can keep playing.') }
+    finally { rewardPending.current = false; setRewardBusy(false) }
+  }
   const onHint = () => {
-    if (menuConfirmation) return
+    if (menuConfirmation || rewardPending.current) return
     if (tutorialStep >= 1 && tutorialStep <= 3) return
     if (gameOver || completed || endTimer.current) return
     const current = allowances.status()
     if (!current.available) { setNotice('Your usage could not be saved. Please check browser storage.'); return }
-    if (current.hintFree === 0 && current.hintCredits === 0) { onRequestReward('hint'); return }
+    if (current.hintFree === 0 && current.hintCredits === 0) { void requestUses('hint'); return }
     const index = findHint(puzzle, board.cells, usedHints)
     if (index === null) { setNotice('No safe next move is available. Try undoing a rabbit.'); return }
     if (hintCell === index) return
@@ -225,12 +246,12 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     if (tutorialStep === 4) finishTutorial()
   }
   const onUndo = () => {
-    if (menuConfirmation) return
+    if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
-    if (!history.length) return
     const current = allowances.status()
     if (!current.available) { setNotice('Your usage could not be saved. Please check browser storage.'); return }
-    if (current.undoFree === 0 && current.undoCredits === 0) { onRequestReward('undo'); return }
+    if (current.undoFree === 0 && current.undoCredits === 0) { void requestUses('undo'); return }
+    if (!history.length) return
     if (!allowances.consume('undo')) return
     setBoard(history[history.length - 1])
     if ((tutorialStep === 2 || tutorialStep === 3) && target !== undefined && history[history.length - 1].cells[target] !== 'rabbit') { setTutorialProgress(1); lastTouchTap.current = null; drawing.current = null }
@@ -241,7 +262,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     setNotice('Undone.')
   }
   const onRestart = () => {
-    if (menuConfirmation) return
+    if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
     if (daily) { setNotice('Daily Puzzle is unavailable. Please return to the menu.'); return }
     if (!confirmDuringGameplay(t('Restart this puzzle? Your rabbits and marks will be cleared.'))) return
@@ -259,7 +280,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   // Rebind to the latest gameplay handlers without clearing a held Space brush.
   useEffect(() => {
     const handlers = keyboardHandlers({
-      enabled: () => !!gameRoot.current && !gameRoot.current.closest('[hidden]') && !document.hidden && !document.querySelector('[role="dialog"]') && !completed && !gameOver && !endTimer.current,
+      enabled: () => !!gameRoot.current && !gameRoot.current.closest('[hidden]') && !rewardPending.current && !document.hidden && !document.querySelector('[role="dialog"]') && !completed && !gameOver && !endTimer.current,
       size: puzzle.size,
       selected: () => selectedCell.current ?? target ?? 0,
       select: (index) => { selectedCell.current = index; setKeyboardSelection(index) },
@@ -297,5 +318,5 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     }
   }
 
-  return <main ref={gameRoot} tabIndex={-1} className={tutorialStep >= 1 && tutorialStep <= 4 ? "game-shell has-level-tutorial" : "game-shell"} id="game">{menuConfirmation && <MainMenuConfirmation onStay={() => setMenuConfirmation(false)} onMenu={() => { setMenuConfirmation(false); onMenu() }}/>}<Header musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={onToggleMusic} onToggleSoundEffects={onToggleSoundEffects} onMenu={onMenu}/><div className={`game-content${(gameOver || completed) && endScreenReady ? ' game-ended' : ''}`}><LevelInfo level={level} rabbitCount={puzzle.rabbitCount} cells={board.cells} lives={board.lives} daily={daily}/>{gameOver && endScreenReady ? <section className="game-result"><div className="out-of-carrots-art" aria-hidden="true">{[0, 1, 2].map((carrot) => <img src={assetUrl('bunny/carrot-life-eaten.svg')} alt="" key={carrot}/>)}</div><h1>{t("Out of Carrots")}</h1>{daily && <DailyCountdown/>}<p>{t("Take a breath and give this puzzle another try.")}</p><p>{t("Oh no, out of carrots!")}</p><button className="pill-button primary-button" onClick={startOver} disabled={daily}>{t("Restart")}</button><button className="text-button" onClick={onMenu}>{t("Main Menu")}</button></section> : completed && endScreenReady ? <section className="game-result"><img src={assetUrl('bunny/bunny.svg')} alt=""/><h1>{t("Puzzle Complete!")}</h1>{daily && <DailyCountdown/>}<p>{t("You solved the Bunoku puzzle with {count} carrots left.", { count: board.lives })}</p><button className="pill-button primary-button" onClick={nextPuzzle} disabled={preparingPuzzle || daily}>{t("Next!")}</button>{generationError && <p role="alert">{translatedError(generationError)}</p>}<button className="text-button" onClick={onMenu}>{t("Main Menu")}</button></section> : <><PuzzleBoard keyboardSelection={keyboardSelection} tutorialStep={tutorialStep} puzzle={puzzle} cells={board.cells} onPointerStart={onPointerStart} onPointerEnter={onPointerEnter} onPointerMove={onPointerMove} onPointerEnd={onPointerEnd} onDoubleClick={(index) => { if (!touchInput.current) placeRabbit(index) }} hintCell={hintCell} failures={failures} celebrations={celebrations} onCelebrationEnd={(id) => setCelebrations((items) => items.filter((item) => item.id !== id))}/><div className="game-feedback" aria-live="polite">{tutorialStep > 0 && (tutorialStep < 5 || !notice) ? <TutorialPrompt step={tutorialStep} onSkip={() => finishTutorial(true)} onContinue={() => finishTutorial()}/> : t(notice) || (board.cells.every((cell) => cell !== 'rabbit' && cell !== 'given' && cell !== 'hint') ? <span className="starting-color">{t("Start with this color")}<span className="starting-color-swatch" style={{ backgroundColor: puzzle.regionColors[puzzle.startRegion] }} aria-label={t("Outlined starting region")} /></span> : '')}</div><BottomControls tutorialStep={tutorialStep} restoreKeyboardFocus={restoreKeyboardFocus} onHint={onHint} onUndo={onUndo} onRestart={onRestart} canUndo={history.length > 0}/></>}</div></main>
+  return <main ref={gameRoot} inert={rewardBusy} aria-busy={rewardBusy} tabIndex={-1} className={tutorialStep >= 1 && tutorialStep <= 4 ? "game-shell has-level-tutorial" : "game-shell"} id="game">{menuConfirmation && <MainMenuConfirmation onStay={() => setMenuConfirmation(false)} onMenu={() => { setMenuConfirmation(false); onMenu() }}/>}<Header musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={onToggleMusic} onToggleSoundEffects={onToggleSoundEffects} onMenu={onMenu}/><div className={`game-content${(gameOver || completed) && endScreenReady ? ' game-ended' : ''}`}><LevelInfo level={level} rabbitCount={puzzle.rabbitCount} cells={board.cells} lives={board.lives} daily={daily}/>{gameOver && endScreenReady ? <section className="game-result"><div className="out-of-carrots-art" aria-hidden="true">{[0, 1, 2].map((carrot) => <img src={assetUrl('bunny/carrot-life-eaten.svg')} alt="" key={carrot}/>)}</div><h1>{t("Out of Carrots")}</h1>{daily && <DailyCountdown/>}<p>{t("Take a breath and give this puzzle another try.")}</p><p>{t("Oh no, out of carrots!")}</p><button className="pill-button primary-button" onClick={startOver} disabled={daily}>{t("Restart")}</button><button className="text-button" onClick={onMenu}>{t("Main Menu")}</button></section> : completed && endScreenReady ? <section className="game-result"><img src={assetUrl('bunny/bunny.svg')} alt=""/><h1>{t("Puzzle Complete!")}</h1>{daily && <DailyCountdown/>}<p>{t("You solved the Bunoku puzzle with {count} carrots left.", { count: board.lives })}</p><button className="pill-button primary-button" onClick={nextPuzzle} disabled={preparingPuzzle || daily}>{t("Next!")}</button>{generationError && <p role="alert">{translatedError(generationError)}</p>}<button className="text-button" onClick={onMenu}>{t("Main Menu")}</button></section> : <><PuzzleBoard keyboardSelection={keyboardSelection} tutorialStep={tutorialStep} puzzle={puzzle} cells={board.cells} onPointerStart={onPointerStart} onPointerEnter={onPointerEnter} onPointerMove={onPointerMove} onPointerEnd={onPointerEnd} onDoubleClick={(index) => { if (!touchInput.current) placeRabbit(index) }} hintCell={hintCell} failures={failures} celebrations={celebrations} onCelebrationEnd={(id) => setCelebrations((items) => items.filter((item) => item.id !== id))}/><div className="game-feedback" aria-live="polite">{tutorialStep > 0 && (tutorialStep < 5 || !notice) ? <TutorialPrompt step={tutorialStep} onSkip={() => finishTutorial(true)} onContinue={() => finishTutorial()}/> : t(notice) || (board.cells.every((cell) => cell !== 'rabbit' && cell !== 'given' && cell !== 'hint') ? <span className="starting-color">{t("Start with this color")}<span className="starting-color-swatch" style={{ backgroundColor: puzzle.regionColors[puzzle.startRegion] }} aria-label={t("Outlined starting region")} /></span> : '')}</div><BottomControls tutorialStep={tutorialStep} restoreKeyboardFocus={restoreKeyboardFocus} onHint={onHint} onUndo={onUndo} onRestart={onRestart} canUndo={history.length > 0}/></>}</div></main>
 }
