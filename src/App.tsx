@@ -1,3 +1,5 @@
+import Rewards from './components/Rewards'
+import { allowances } from './game/allowances.ts'
 import { t, useLanguage, setLanguage, languages, translatedError } from './i18n'
 import { useEffect, useRef, useState } from 'react'
 import GameScreen from './components/GameScreen'
@@ -9,8 +11,9 @@ import { initializeAudio, playSound, setMusicEnabled, setSoundEffectsEnabled } f
 import type { PuzzleDefinition } from './game/puzzle'
 import { createNormalPuzzleAsync, createPuzzleAsync } from './game/puzzleClient'
 import { loadNormalLevel } from './game/levels'
+import type { RewardKind } from './game/allowances.ts'
 
-type Screen = 'menu' | 'game' | 'daily' | 'daily-game' | 'daily-error' | 'tutorial'
+type Screen = 'menu' | 'game' | 'daily' | 'daily-game' | 'daily-error' | 'tutorial' | 'rewards'
 const MUSIC_PREF = 'bunoku.musicEnabled'
 const EFFECTS_PREF = 'bunoku.soundEffectsEnabled'
 function loadAudioPreference(key: string, fallback: boolean) {
@@ -31,11 +34,25 @@ function App() {
   useEffect(() => { setMusicEnabled(musicOn) }, [musicOn])
   const toggleEffects = () => { const enabled = !soundEffectsOn; saveAudioPreference(EFFECTS_PREF, enabled); setSoundEffectsEnabled(enabled); setSoundEffectsOn(enabled) }
   const toggleMusic = () => { const enabled = !musicOn; saveAudioPreference(MUSIC_PREF, enabled); setMusicEnabled(enabled); setMusicOn(enabled) }
+  const openRewards = (kind: RewardKind | null = null) => {
+    setRewardReturnScreen(screen === 'game' || screen === 'daily-game' ? screen : 'menu')
+    setSelectedReward(kind)
+    setScreen('rewards')
+  }
+  const closeRewards = () => { setScreen('menu'); setSelectedReward(null) }
+  const completeReward = () => {
+    if (rewardReturnScreen === 'game' || rewardReturnScreen === 'daily-game') {
+      setScreen(rewardReturnScreen)
+    }
+    setSelectedReward(null)
+  }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [dailyPuzzle, setDailyPuzzle] = useState<PuzzleDefinition | null>(null)
   const [normalPuzzle, setNormalPuzzle] = useState<PuzzleDefinition | null>(null)
   const [errorIsDaily, setErrorIsDaily] = useState(true)
   const [dailyError, setDailyError] = useState('')
+  const [rewardReturnScreen, setRewardReturnScreen] = useState<Screen>('menu')
+  const [selectedReward, setSelectedReward] = useState<RewardKind | null>(null)
   const dailyStarting = useRef(false)
   const normalStarting = useRef(false)
   const startNormal = async (entrySound = false) => {
@@ -52,11 +69,15 @@ function App() {
     } finally { normalStarting.current = false }
   }
   const startDaily = async () => {
-    if (dailyStarting.current) return
+    if (dailyStarting.current || loadNormalLevel() < 11 || !allowances.status().available || allowances.status().dailyRemaining > 0) return
     dailyStarting.current = true
-    if (soundEffectsOn) playSound('entery')
     try {
-      setDailyPuzzle(await createPuzzleAsync(9, 0, true))
+      const next = await createPuzzleAsync(9, 0, true)
+      const claim = () => allowances.startDaily(loadNormalLevel() - 1)
+      const claimed = navigator.locks ? await navigator.locks.request('bunoku.daily-start', claim) : claim()
+      if (!claimed) { setErrorIsDaily(true); setDailyError('Daily Puzzle is unavailable. Please return to the menu.'); setScreen('daily-error'); return }
+      if (soundEffectsOn) playSound('entery')
+      setDailyPuzzle(next)
       setDailyError('')
       setScreen('daily-game')
     } catch (error) {
@@ -70,9 +91,10 @@ function App() {
 
   return (
     <>
-      {screen === 'menu' && <MainMenu musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onPlay={() => { void startNormal(true) }} onDaily={startDaily} onTutorial={() => setScreen('tutorial')} onSettings={() => setSettingsOpen(true)} />}
-      {normalPuzzle && <div className="game-view" hidden={screen !== 'game'}><GameScreen musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} initialPuzzle={normalPuzzle} /></div>}
-      {screen === 'daily-game' && dailyPuzzle && <GameScreen musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} daily initialPuzzle={dailyPuzzle} />}
+      {screen === 'rewards' && <Rewards initialKind={selectedReward} onBack={closeRewards} onRewardGranted={completeReward} />}
+      {screen === 'menu' && <MainMenu musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onPlay={() => { void startNormal(true) }} onDaily={startDaily} onRewards={() => openRewards()} onTutorial={() => setScreen('tutorial')} onSettings={() => setSettingsOpen(true)} />}
+      {normalPuzzle && <div className="game-view" hidden={screen !== 'game'}><GameScreen active={screen === 'game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} onRequestReward={openRewards} initialPuzzle={normalPuzzle} /></div>}
+      {dailyPuzzle && (screen === 'daily-game' || (screen === 'rewards' && rewardReturnScreen === 'daily-game')) && <div className="game-view" hidden={screen !== 'daily-game'}><GameScreen active={screen === 'daily-game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} onRequestReward={openRewards} daily initialPuzzle={dailyPuzzle} /></div>}
       {screen === 'daily-error' && <main className="simple-screen"><AppHeader musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onSettings={() => setSettingsOpen(true)} /><section className="placeholder-card"><h1>{errorIsDaily ? 'Daily Puzzle' : 'Bunoku'}</h1><p>{translatedError(dailyError)}</p><button className="pill-button primary-button" onClick={() => { if (errorIsDaily) void startDaily(); else void startNormal() }}>{t("Try Again")}</button><button className="text-button" onClick={() => setScreen('menu')}>{t("Back to Menu")}</button></section></main>}
       {screen === 'tutorial' && <HowToPlay musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onPlay={() => { void startNormal() }} onBack={() => setScreen('menu')} />}
       {screen === 'daily' && <DailyPlaceholder musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen('menu')} onPlay={() => setScreen('daily-game')} />}

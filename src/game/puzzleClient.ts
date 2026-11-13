@@ -1,13 +1,15 @@
 import { validatePuzzle } from './puzzle.ts'
 import type { PuzzleDefinition } from './puzzle.ts'
 import { gridForLevel } from './levels.ts'
+import { beginLoading } from '../crazygames.ts'
 
 export function createNormalPuzzleAsync(level: number, signal?: AbortSignal): Promise<PuzzleDefinition> {
   return createPuzzleAsync(gridForLevel(level), level, false, signal)
 }
 
 export function createPuzzleAsync(size: number, level: number, daily: boolean, signal?: AbortSignal): Promise<PuzzleDefinition> {
-  return new Promise((resolve, reject) => {
+  const finishLoading = beginLoading()
+  return new Promise<PuzzleDefinition>((resolve, reject) => {
     const worker = new Worker(new URL('./puzzle.worker.ts', import.meta.url), { type: 'module' })
     const timeout = setTimeout(() => finish(new Error('Preparing the puzzle took too long. Please try again.')), 5000)
     const finish = (error?: Error, puzzle?: PuzzleDefinition) => {
@@ -31,5 +33,5 @@ export function createPuzzleAsync(size: number, level: number, daily: boolean, s
       finish(new Error('We couldn’t prepare the puzzle. Please try again.'))
     }
     worker.postMessage({ size, level, daily })
-  })
+  }).finally(finishLoading)
 }

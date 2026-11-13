@@ -78,7 +78,7 @@ Do not implement future features before the core game works.
 
 - The main menu uses the Bunoku wordmark, a sound toggle, the unmodified `public/bunny/bunny-menu.svg` mascot centered with responsive `object-fit: contain`, a welcome heading, and Play, Daily Puzzle, How to Play, and Settings actions.
 - The primary main-menu action is labeled “Let's Play!” and opens the game screen directly.
-- Play opens the current normal game. Daily Puzzle opens a playable 9×9 prototype using the shared progressive engine, without attempt limits, midnight resets, or streaks.
+- Play opens the current normal game. Daily Puzzle uses the shared 9×9 progressive engine and unlocks after completing Level 10. The menu shows ten-level progress, a lock, and then a countdown. One successful puzzle start consumes one attempt for 24 hours; failed generation consumes nothing. Daily attempts cannot restart or open another puzzle during the cooldown. There are no midnight resets or streaks.
 - How to Play opens a four-rule visual tutorial. Its rules explain one rabbit per region, row and column, no touching in any direction, and the three-carrot mistake limit.
 - The tutorial offers Let's Play! to open the game and Back to Menu to return.
 - Settings provides a sound preference control. The sound toggle is shared across screens.
@@ -86,6 +86,14 @@ Do not implement future features before the core game works.
 - The game header includes a compact, tappable Main Menu control with a home icon beside the Bunoku wordmark; the sound toggle remains on the right.
 
 ## 4. Visual Identity
+
+### Persistent allowances and optional rewards
+
+- Each player has five lifetime free Hint uses and five lifetime free Undo uses. A successful hint preview or actual Undo consumes one use. Invalid actions, level changes, Restart and Undo never replenish an allowance.
+- After the free allowance, the corresponding action spends one saved reward credit. Exhausted controls display a small video icon and an informational message, never an ad request.
+- A separate Rewards screen, reached from the main menu, offers one optional rewarded advertisement for three Hint credits OR three Undo credits after completing at least one puzzle. The continue-without-ad control uses the same button styling. Successful rewards have a visible 60-second offer cooldown.
+- CrazyGames SDK v3 rewarded callbacks alone control the outcome. Audio is muted and SDK gameplay suspended only after adStarted, and restored after completion/error. Only a completed started ad grants credits; errors, missing ads, cancelled requests and duplicate callbacks grant nothing. The UI remains blocked during the SDK request until a terminal callback; an arbitrary timeout cannot safely cancel an SDK ad that might still start.
+- New balances and Daily timestamps use a versioned localStorage record, preserving existing level progress and audio preferences. Failed persistence blocks scarce actions rather than silently replenishing uses. This setup has not enabled CrazyGames Data cloud saving. Client clock rollback is handled with a saved high-water clock plus elapsed session time; clearing storage or deliberately changing the clock across reloads cannot be secured without a trusted service.
 
 **Working name:** Bunoku
 

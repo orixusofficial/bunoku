@@ -4,19 +4,21 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import * as engine from '../src/game/puzzle.ts';
+import {createAllowances} from '../src/game/allowances.ts';
 const source=fs.readFileSync(new URL('../src/components/GameScreen.tsx',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 let fixtureId=0;
 async function fixture({daily=false,level=1,storage=new Map()}={}){
  globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};
+ const allowance=createAllowances(()=>({getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)}));
  const tutorial=await import('../src/game/tutorial.ts?fixture='+fixtureId++);
  const puzzle=daily?engine.createDailyPuzzle():engine.createPuzzle(level);
- let slots=[],cursor=0,clock=1000;const sounds=[],timers=[];
+ let slots=[],cursor=0,clock=1000;const sounds=[],timers=[],requestedRewards=[];
  const react={useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i]},useEffect(){cursor++}};
  const jsx=(type,props)=>({type,props}),module={exports:{}};
- const req=n=>n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
+ const req=n=>n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
  vm.runInNewContext('(function(require,module,exports){'+js+'})',{localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
- const props={initialPuzzle:puzzle,daily,onMenu(){},musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
+ const props={initialPuzzle:puzzle,daily,onMenu(){},onRequestReward(kind){requestedRewards.push(kind)},rewardAction:null,musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
  const render=()=>{cursor=0;return module.exports.default(props)};
  function find(n,name){if(!n||typeof n!=='object')return;if(n.type?.name===name)return n;for(const c of [n.props?.children].flat(Infinity)){const found=find(c,name);if(found)return found}}
  const node=name=>find(render(),name),board=()=>node('PuzzleBoard').props,controls=()=>node('BottomControls').props;
@@ -24,7 +26,7 @@ async function fixture({daily=false,level=1,storage=new Map()}={}){
  const tap=(index,kind='mouse')=>{board().onPointerStart(index,ev('pointerdown',kind));clock+=25;board().onPointerEnd(ev('pointerup',kind));clock+=60};
  const double=(index,kind='mouse')=>{tap(index,kind);tap(index,kind);if(kind==='mouse')board().onDoubleClick(index)};
  const drag=(indices,kind='mouse')=>{board().onPointerStart(indices[0],ev('pointerdown',kind));for(const index of indices.slice(1))board().onPointerEnter(index);board().onPointerEnd(ev('pointerup',kind));clock+=1000};
- render();return{puzzle,tutorial,slots,storage,sounds,timers,render,node,board,controls,tap,double,drag,wait(){clock+=1000}};
+ render();return{puzzle,tutorial,slots,allowance,storage,sounds,timers,requestedRewards,render,node,board,controls,tap,double,drag,wait(){clock+=1000}};
 }
 for(const kind of ['mouse','touch'])test(kind+': complete fresh-player steps 1–5 and finish the real puzzle',async()=>{
  const f=await fixture(),target=f.tutorial.tutorialTarget(f.puzzle),blocked=f.tutorial.tutorialBlockedCells(f.puzzle);
@@ -53,4 +55,16 @@ test('Level 2 and Daily remain unrestricted and do not save tutorial completion'
 });
 test('blocked tutorial highlights correspond only to actual row/column/touch conflicts',async()=>{
  for(let i=0;i<30;i++){const f=await fixture(),target=f.tutorial.tutorialTarget(f.puzzle);assert(f.puzzle.solution.includes(target));for(const index of f.tutorial.tutorialBlockedCells(f.puzzle))assert(!f.puzzle.solution.includes(index));assert(f.tutorial.tutorialBlockedCells(f.puzzle).length>=3)}
+});
+
+test('real Hint/Undo handlers spend only successful uses and never refund on Restart or reload', async()=>{
+ const f=await fixture({level:2});
+ f.controls().onUndo(); assert.equal(f.allowance.status().undoFree,5);
+ for(let i=0;i<5;i++){f.controls().onHint();assert.notEqual(f.board().hintCell,null);f.controls().onRestart();assert.equal(f.allowance.status().hintFree,4-i)}
+ f.controls().onHint();assert.equal(f.board().hintCell,null);assert.equal(f.allowance.status().hintFree,0);assert.deepEqual(f.requestedRewards,['hint']);
+ for(let i=0;i<5;i++){f.tap(0);f.controls().onUndo();assert.equal(f.slots[1].cells[0],'empty');assert.equal(f.allowance.status().undoFree,4-i);f.wait()}
+ f.tap(0);f.controls().onUndo();assert.equal(f.slots[1].cells[0],'mark');assert.equal(f.allowance.status().undoFree,0);
+ f.controls().onRestart();const reload=await fixture({level:2,storage:f.storage});assert.equal(reload.allowance.status().hintFree,0);assert.equal(reload.allowance.status().undoFree,0);
+ assert.equal(reload.allowance.grant('hint','ad'),true);reload.controls().onHint();assert.equal(reload.allowance.status().hintCredits,0);
+ const daily=await fixture({daily:true});daily.tap(0);const before=[...daily.slots[1].cells];daily.controls().onRestart();assert.deepEqual(Array.from(daily.slots[1].cells),before,'Daily restart cannot replay an attempt');
 });

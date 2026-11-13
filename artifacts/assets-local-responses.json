@@ -1,0 +1,157 @@
+{
+  "target": "http://127.0.0.1:5197/package/bunoku/",
+  "patchedDeployment": true,
+  "checked": 25,
+  "results": [
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/",
+      "status": 200,
+      "bytes": 874,
+      "contentType": "text/html"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/entery.mp3",
+      "status": 200,
+      "bytes": 36909,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/excellent.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/fail.mp3",
+      "status": 200,
+      "bytes": 36909,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/failbite.mp3",
+      "status": 200,
+      "bytes": 13293,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/foundbunny.mp3",
+      "status": 200,
+      "bytes": 17901,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/music.mp3",
+      "status": 200,
+      "bytes": 1309242,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/nice.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/unrealistic.mp3",
+      "status": 200,
+      "bytes": 73197,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/win.mp3",
+      "status": 200,
+      "bytes": 31149,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/wow.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/Xoff.mp3",
+      "status": 200,
+      "bytes": 32600,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/audio/Xon.mp3",
+      "status": 200,
+      "bytes": 13293,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/bunny/bunny-menu.svg",
+      "status": 200,
+      "bytes": 122495,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/bunny/bunny.svg",
+      "status": 200,
+      "bytes": 2094,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/bunny/carrot-life-eaten.svg",
+      "status": 200,
+      "bytes": 924,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/bunny/carrot-life.svg",
+      "status": 200,
+      "bytes": 579,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/bunny/carrot.svg",
+      "status": 200,
+      "bytes": 46794,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/favicon.svg",
+      "status": 200,
+      "bytes": 9522,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/fonts/Nunito-OFL.txt",
+      "status": 200,
+      "bytes": 4385,
+      "contentType": "text/plain"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/icons.svg",
+      "status": 200,
+      "bytes": 5031,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/assets/index-DMwd7qEg.js",
+      "status": 200,
+      "bytes": 274439,
+      "contentType": "text/javascript"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/assets/puzzle.worker-XhgRy_dW.js",
+      "status": 200,
+      "bytes": 6616,
+      "contentType": "text/javascript"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/assets/index-CO1nEbvv.css",
+      "status": 200,
+      "bytes": 25110,
+      "contentType": "text/css"
+    },
+    {
+      "url": "http://127.0.0.1:5197/package/bunoku/assets/Nunito-Variable-63TK8RbS.ttf",
+      "status": 200,
+      "bytes": 276932,
+      "contentType": "font/ttf"
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+{
+  "target": "https://bunoku.vercel.app/",
+  "patchedDeployment": false,
+  "checked": 29,
+  "results": [
+    {
+      "url": "https://bunoku.vercel.app/",
+      "status": 200,
+      "bytes": 456,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/entery.mp3",
+      "status": 200,
+      "bytes": 36909,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/excellent.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/fail.mp3",
+      "status": 200,
+      "bytes": 36909,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/failbite.mp3",
+      "status": 200,
+      "bytes": 13293,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/foundbunny.mp3",
+      "status": 200,
+      "bytes": 17901,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/music.mp3",
+      "status": 200,
+      "bytes": 1309242,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/nice.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/unrealistic.mp3",
+      "status": 200,
+      "bytes": 73197,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/win.mp3",
+      "status": 200,
+      "bytes": 31149,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/wow.mp3",
+      "status": 200,
+      "bytes": 49581,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/Xoff.mp3",
+      "status": 200,
+      "bytes": 32600,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/audio/Xon.mp3",
+      "status": 200,
+      "bytes": 13293,
+      "contentType": "audio/mpeg"
+    },
+    {
+      "url": "https://bunoku.vercel.app/bunny/bunny-menu.svg",
+      "status": 200,
+      "bytes": 122495,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/bunny/bunny.svg",
+      "status": 200,
+      "bytes": 2094,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/bunny/carrot-life-eaten.svg",
+      "status": 200,
+      "bytes": 924,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/bunny/carrot-life.svg",
+      "status": 200,
+      "bytes": 579,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/bunny/carrot.svg",
+      "status": 200,
+      "bytes": 46794,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/favicon.svg",
+      "status": 200,
+      "bytes": 9522,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/icons.svg",
+      "status": 200,
+      "bytes": 5031,
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://bunoku.vercel.app/assets/index-D2TGANem.js",
+      "status": 200,
+      "bytes": 274338,
+      "contentType": "application/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://bunoku.vercel.app/assets/puzzle.worker-XhgRy_dW.js",
+      "status": 200,
+      "bytes": 6616,
+      "contentType": "application/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://bunoku.vercel.app/assets/index-CtK3hhfb.css",
+      "status": 200,
+      "bytes": 25062,
+      "contentType": "text/css; charset=utf-8"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap",
+      "status": 200,
+      "bytes": 1075,
+      "contentType": "text/css; charset=utf-8"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/nunito/v32/XRXI3I6Li01BKofiOc5wtlZ2di8HDLshRTM.ttf",
+      "status": 200,
+      "bytes": 125528,
+      "contentType": "font/ttf"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/nunito/v32/XRXI3I6Li01BKofiOc5wtlZ2di8HDIkhRTM.ttf",
+      "status": 200,
+      "bytes": 125652,
+      "contentType": "font/ttf"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/nunito/v32/XRXI3I6Li01BKofiOc5wtlZ2di8HDGUmRTM.ttf",
+      "status": 200,
+      "bytes": 125536,
+      "contentType": "font/ttf"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/nunito/v32/XRXI3I6Li01BKofiOc5wtlZ2di8HDFwmRTM.ttf",
+      "status": 200,
+      "bytes": 125464,
+      "contentType": "font/ttf"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/nunito/v32/XRXI3I6Li01BKofiOc5wtlZ2di8HDDsmRTM.ttf",
+      "status": 200,
+      "bytes": 125416,
+      "contentType": "font/ttf"
+    }
+  ]
+}

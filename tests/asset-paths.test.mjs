@@ -24,7 +24,7 @@ test('public asset URLs stay inside root, nested and configured hosting director
 test('production entry, font and worker remain portable without external font requests', () => {
   const dist = new URL('../dist/', import.meta.url)
   const html = fs.readFileSync(new URL('index.html', dist), 'utf8')
-  const references = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1])
+  const references = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1]).filter(url => !url.startsWith('https://sdk.crazygames.com/'))
   assert(references.every(url => url.startsWith('./')), 'all built entry URLs must be relative')
   for (const ref of references) assert(fs.existsSync(new URL(ref, dist)), ref)
   const css = fs.readFileSync(new URL(references.find(ref => ref.endsWith('.css')), dist), 'utf8')

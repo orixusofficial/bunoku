@@ -4,12 +4,14 @@ import { assetUrl } from './assetUrl.ts'
 
 let soundEffectsEnabled = true
 let musicEnabled = false
+let platformMuted = false
+let adMuted = false
 let initialized = false
 let music: HTMLAudioElement | null = null
 const effects = new Set<HTMLAudioElement>()
 
 function resumeMusic() {
-  if (!initialized || !musicEnabled || document.hidden) {
+  if (!initialized || !musicEnabled || platformMuted || adMuted || document.hidden) {
     if (music) { music.muted = true; music.pause() }
     return
   }
@@ -21,7 +23,7 @@ function resumeMusic() {
   music.muted = false
   if (music.paused) void music.play().then(() => {
     // A pending play request must not undo a later Sound OFF action.
-    if ((!initialized || !musicEnabled || document.hidden) && music) { music.muted = true; music.pause() }
+    if ((!initialized || !musicEnabled || platformMuted || adMuted || document.hidden) && music) { music.muted = true; music.pause() }
   }).catch(() => {
     // A later user interaction retries blocked playback.
   })
@@ -42,7 +44,19 @@ export function setMusicEnabled(enabled: boolean) {
 
 export function setSoundEffectsEnabled(enabled: boolean) {
   soundEffectsEnabled = enabled
-  effects.forEach((audio) => { audio.muted = !enabled })
+  effects.forEach((audio) => { audio.muted = !enabled || platformMuted || adMuted })
+}
+
+export function setPlatformMuted(muted: boolean) {
+  platformMuted = muted
+  effects.forEach((audio) => { audio.muted = !soundEffectsEnabled || muted || adMuted })
+  resumeMusic()
+}
+
+export function setAdMuted(muted: boolean) {
+  adMuted = muted
+  effects.forEach((audio) => { audio.muted = !soundEffectsEnabled || platformMuted || muted })
+  resumeMusic()
 }
 
 export function initializeAudio() {
@@ -66,7 +80,7 @@ export function initializeAudio() {
 
 export function playSound(name: SoundName) {
   const audio = new Audio(assetUrl(`audio/${name}.mp3`))
-  audio.muted = !soundEffectsEnabled
+  audio.muted = !soundEffectsEnabled || platformMuted || adMuted
   effects.add(audio)
   const release = () => effects.delete(audio)
   audio.onended = release
