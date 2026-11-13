@@ -1,4 +1,6 @@
 import RewardIcon from './RewardIcon'
+import PuzzleCell from './PuzzleCell'
+import type { CellEvents } from './PuzzleCell'
 import type { DailyProgress } from '../game/dailyState.ts'
 import { DailyCountdown } from './DailyAccess'
 import { trackGameplay, confirmDuringGameplay, requestRewardedAd, logAdDiagnostic } from '../crazygames.ts'
@@ -6,8 +8,8 @@ import { allowances } from '../game/allowances.ts'
 import { useAllowances } from '../useAllowances'
 import { assetUrl } from '../assetUrl.ts'
 import MainMenuConfirmation from './MainMenuConfirmation'
-import { t, translatedError } from '../i18n'
-import { useEffect, useRef, useState } from 'react'
+import { t, translatedError, useLanguage } from '../i18n'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { attemptPlacement, createInitialState, findHint, isComplete } from '../game/puzzle'
@@ -35,14 +37,20 @@ type Celebration = { id: number; index: number; text: string }
 
 function PuzzleBoard({ puzzle, cells, onPointerStart, onPointerEnter, onPointerMove, onPointerEnd, onDoubleClick, hintCell, failures, celebrations, onCelebrationEnd, tutorialStep = 0, keyboardSelection = null }: { puzzle: PuzzleDefinition; cells: CellState[]; onPointerStart: (index: number, event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerEnter: (index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void; onPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void; onDoubleClick: (index: number) => void; hintCell: number | null; failures: FailedCellAnimation[]; celebrations: Celebration[]; onCelebrationEnd: (id: number) => void; tutorialStep?: TutorialStep; keyboardSelection?: number | null }) {
   const size = puzzle.size
+  const language = useLanguage()
+  const latest = useRef({ onPointerStart, onPointerEnter, onDoubleClick, onCelebrationEnd })
+  useLayoutEffect(() => { latest.current = { onPointerStart, onPointerEnter, onDoubleClick, onCelebrationEnd } })
+  const events = useRef<CellEvents>({
+    start: (index, event) => latest.current.onPointerStart(index, event),
+    enter: (index) => latest.current.onPointerEnter(index),
+    double: (index) => latest.current.onDoubleClick(index),
+    celebrationEnd: (id) => latest.current.onCelebrationEnd(id),
+  })
+  const target = tutorialStep === 1 ? tutorialTarget(puzzle) : undefined
+  const blocked = tutorialStep === 2 || tutorialStep === 3 ? tutorialBlockedCells(puzzle) : []
   return <div className="board" role="grid" aria-label={t("{size} by {size} puzzle board", { size })} style={{ '--board-size': size } as CSSProperties} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} onPointerLeave={(event) => { if (event.buttons === 0) onPointerEnd(event) }}>{cells.map((cell, index) => {
-    const row = Math.floor(index / size)
-    const region = puzzle.regions[index]
-    const active = region === puzzle.startRegion
-    const failed = failures.some((failure) => failure.index === index)
-    const marked = !failed && cell === 'mark'
-    const tutorialClass = tutorialStep === 1 ? (index === tutorialTarget(puzzle) ? ' tutorial-target' : active ? ' tutorial-region' : ' tutorial-dim') : (tutorialStep === 2 || tutorialStep === 3) && tutorialBlockedCells(puzzle).includes(index) ? ' tutorial-blocked' : ''
-    return <button key={index} type="button" role="gridcell" data-cell-index={index} data-region-id={region} className={`cell${tutorialClass}${keyboardSelection === index ? ' keyboard-selected' : ''} region-${region} ${active ? 'region-start' : ''} ${cell !== 'empty' ? `cell-${cell}` : ''} ${hintCell === index ? 'hint-target' : ''}`} style={{ '--region-color': puzzle.regionColors[region], '--reveal-delay': `${240 * index / Math.max(1, cells.length - 1)}ms` } as CSSProperties} aria-label={t("Row {row}, column {column}{state}", { row: row + 1, column: index % size + 1, state: t(puzzle.given === index ? ", given rabbit" : failed ? ", failed" : cell === "mark" ? ", marked" : cell === "rabbit" || cell === "hint" || cell === "given" ? ", rabbit" : "") })} onPointerDown={(event) => onPointerStart(index, event)} onPointerEnter={() => onPointerEnter(index)} onDoubleClick={() => onDoubleClick(index)} disabled={(tutorialStep === 1 && index !== tutorialTarget(puzzle)) || puzzle.given === index || cell === 'given' || failed}>{cell === 'rabbit' || cell === 'given' || cell === 'hint' ? <img src={assetUrl('bunny/bunny.svg')} alt=""/> : marked ? <span className="cell-x">×</span> : null}{failures.filter((failure) => failure.index === index).map((failure) => <span className="failed-cell-bite" key={failure.id} aria-hidden="true"><img className="bite-whole" src={assetUrl('bunny/carrot.svg')} alt=""/><img className="bite-eaten" src={assetUrl('bunny/carrot-life-eaten.svg')} alt=""/></span>)}{celebrations.filter((celebration) => celebration.index === index).map((celebration) => <span className="bunny-celebration" key={celebration.id} onAnimationEnd={() => onCelebrationEnd(celebration.id)}>{t(celebration.text)}</span>)}</button>
+    const tutorialClass = tutorialStep === 1 ? (index === target ? ' tutorial-target' : puzzle.regions[index] === puzzle.startRegion ? ' tutorial-region' : ' tutorial-dim') : blocked.includes(index) ? ' tutorial-blocked' : ''
+    return <PuzzleCell key={index} puzzle={puzzle} index={index} cell={cell} tutorialClass={tutorialClass} tutorialDisabled={tutorialStep === 1 && index !== target} selected={keyboardSelection === index} hinted={hintCell === index} failures={failures} celebrations={celebrations} events={events.current} language={language}/>
   })}</div>
 }
 
@@ -65,6 +73,8 @@ function TutorialPrompt({ step, onSkip, onContinue }: { step: TutorialStep; onSk
 export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onMenu, daily = false, initialDailyProgress, initialPuzzle, active = true }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onMenu: () => void; initialDailyProgress?: DailyProgress | null; daily?: boolean; active?: boolean; initialPuzzle: PuzzleDefinition }) {
   const [puzzle, setPuzzle] = useState(initialPuzzle)
   const [board, setBoard] = useState<BoardState>(() => initialDailyProgress?.board ?? createInitialState(puzzle))
+  const currentBoard = useRef(board)
+  const updateBoard = (next: BoardState) => { currentBoard.current = next; setBoard(next) }
   const [history, setHistory] = useState<BoardState[]>(initialDailyProgress?.history ?? [])
   const [failureHistory, setFailureHistory] = useState<FailedCellAnimation[][]>(initialDailyProgress?.failureHistory ?? [])
   const [notice, setNotice] = useState('')
@@ -129,8 +139,9 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     void audio.play().catch(releaseAudio)
   }
 
-  const commit = (next: BoardState) => { setHistory((items) => [...items, board]); setFailureHistory((items) => [...items, [...failures]]); setBoard(next); setHintCell(null); setNotice('') }
+  const commit = (next: BoardState) => { setHistory((items) => [...items, currentBoard.current]); setFailureHistory((items) => [...items, [...failures]]); updateBoard(next); setHintCell(null); setNotice('') }
   const placeRabbit = (index: number) => {
+    const board = currentBoard.current
     if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || tutorialStep === 2 || tutorialStep === 3) return
@@ -164,6 +175,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     else if (tutorialStep === 4) finishTutorial()
   }
   const markCell = (index: number, drawingAcross = false) => {
+    const board = currentBoard.current
     if (menuConfirmation || rewardPending.current) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || ((tutorialStep === 2 || tutorialStep === 3) && !blockedTutorialCells.includes(index))) return
@@ -253,7 +265,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     if (current.undoFree === 0 && current.undoCredits === 0) { void requestUses('undo'); return }
     if (!history.length) return
     if (!allowances.consume('undo')) return
-    setBoard(history[history.length - 1])
+    updateBoard(history[history.length - 1])
     if ((tutorialStep === 2 || tutorialStep === 3) && target !== undefined && history[history.length - 1].cells[target] !== 'rabbit') { setTutorialProgress(1); lastTouchTap.current = null; drawing.current = null }
     setHistory((items) => items.slice(0, -1))
     setFailures(failureHistory[failureHistory.length - 1] ?? [])
@@ -267,7 +279,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     if (daily) { setNotice('Daily Puzzle is unavailable. Please return to the menu.'); return }
     if (!confirmDuringGameplay(t('Restart this puzzle? Your rabbits and marks will be cleared.'))) return
     if (tutorialStep >= 1 && tutorialStep <= 4) setTutorialProgress(1)
-    setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); drawing.current = null
+    updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); drawing.current = null
   }
   const restoreKeyboardFocus = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (event.detail === 0) return
@@ -276,7 +288,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
       if (root && !root.closest('[hidden]') && active) root.focus({ preventScroll: true })
     })
   }
-  const startOver = () => { if (daily) return; if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); setBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
+  const startOver = () => { if (daily) return; if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
   // Rebind to the latest gameplay handlers without clearing a held Space brush.
   useEffect(() => {
     const handlers = keyboardHandlers({
@@ -310,7 +322,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
       const next = daily ? await createPuzzleAsync(9, 0, true, controller.signal) : await createNormalPuzzleAsync(level + 1, controller.signal)
       if (controller.signal.aborted) return
       if (!daily) saveNormalLevel(next.level)
-      setEndScreenReady(false); setPuzzle(next); setBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([])
+      setEndScreenReady(false); setPuzzle(next); updateBoard(createInitialState(next)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); setCelebrations([])
     } catch (error) {
       if (!controller.signal.aborted) setGenerationError(error instanceof Error ? error.message : 'Please try preparing the next puzzle again.')
     } finally {
