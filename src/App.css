@@ -223,6 +223,7 @@
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgb(104 117 101 / 30%); }
 .settings-dialog { position: relative; width: min(100%, 390px); padding: 32px; border: 1px solid rgb(104 117 101 / 15%); border-radius: 26px; background: var(--cream); box-shadow: 0 18px 55px rgb(104 117 101 / 18%); }
 .settings-dialog h2 { margin: 0 0 20px; color: var(--forest); font-size: 28px; }
+.settings-panel { max-height: calc(100vh - 40px); max-height: calc(100svh - 40px); overflow-y: auto; }
 .dialog-close { position: absolute; top: 13px; right: 16px; width: 35px; height: 35px; border: 0; border-radius: 50%; background: transparent; color: var(--forest); font-size: 26px; cursor: pointer; }
 .setting-row { width: 100%; min-height: 55px; display: grid; grid-template-columns: 1fr auto 36px; align-items: center; gap: 10px; padding: 0; border: 0; border-top: 1px solid rgb(104 117 101 / 18%); border-bottom: 1px solid rgb(104 117 101 / 18%); background: transparent; color: var(--forest); text-align: left; font-weight: 700; cursor: pointer; }
 .setting-state { text-align: right; font-size: 13px; font-weight: 600; }
@@ -231,6 +232,20 @@
 .switch.is-on { background: var(--sage); }
 .switch.is-on > span { transform: translateX(16px); }
 .settings-done { width: 100%; margin-top: 20px; }
+.privacy-setting { width: 100%; min-height: 44px; margin-top: 18px; padding: 10px 0; display: flex; justify-content: space-between; gap: 12px; border: 0; border-top: 1px solid var(--sage); background: transparent; text-align: start; font-weight: 800; cursor: pointer; }
+.privacy-setting:focus-visible { outline: 2px solid var(--forest); outline-offset: 4px; border-radius: 8px; }
+.privacy-dialog { width: min(100%, 680px); max-height: calc(100vh - 40px); max-height: calc(100svh - 40px); display: flex; flex-direction: column; padding: 24px; }
+.privacy-dialog h2 { flex-shrink: 0; margin: 0; padding-inline-end: 44px; font-size: clamp(23px, 4vw, 28px); }
+.privacy-dialog .dialog-close { width: 44px; height: 44px; top: 12px; right: 12px; }
+.privacy-dialog > .pill-button { flex-shrink: 0; width: 100%; min-height: 44px; }
+.privacy-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 16px 0 20px; padding: 0 10px 0 2px; font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.privacy-body p { margin: 0 0 14px; }
+.privacy-body h3 { margin: 22px 0 8px; font-size: 18px; font-weight: 800; }
+.privacy-body ul { padding-inline-start: 22px; }
+.privacy-body li { margin-bottom: 8px; }
+.privacy-body a { color: var(--forest); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.privacy-body .privacy-updated { font-size: 13px; }
+@media (max-width: 600px) { .privacy-dialog { padding: 18px; border-radius: 22px; } }
 .language-setting { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 18px; color: var(--forest); font-weight: 700; }
 .language-setting select { min-width: 0; max-width: 65%; min-height: 44px; padding: 6px 12px; border: 1px solid var(--sage); border-radius: 14px; background: var(--cream); color: var(--forest); font: inherit; }
 .language-setting select:focus-visible { outline: 3px solid var(--forest); outline-offset: 2px; }

@@ -1,5 +1,8 @@
 // English source text is the key; values are Spanish, Arabic, and Hindi.
 export const translations: Record<string, [string, string, string]> = {
+  'Privacy Policy': ['Política de privacidad', 'سياسة الخصوصية', 'गोपनीयता नीति'],
+  'Close Privacy Policy': ['Cerrar la política de privacidad', 'إغلاق سياسة الخصوصية', 'गोपनीयता नीति बंद करें'],
+  'Back to Settings': ['Volver a Ajustes', 'العودة إلى الإعدادات', 'सेटिंग्स पर वापस जाएँ'],
   'Loading an optional video…': ['Cargando un vídeo opcional…', 'جارٍ تحميل فيديو اختياري…', 'वैकल्पिक वीडियो लोड हो रहा है…'],
   'The ad is unavailable. You can keep playing.': ['El anuncio no está disponible. Puedes seguir jugando.', 'الإعلان غير متاح. يمكنك متابعة اللعب.', 'विज्ञापन उपलब्ध नहीं है। आप खेल जारी रख सकते हैं।'],
   'Resume puzzle': ['Continuar puzle', 'متابعة اللغز', 'पहेली जारी रखें'],

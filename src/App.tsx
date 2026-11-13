@@ -7,6 +7,7 @@ import GameScreen from './components/GameScreen'
 import HowToPlay from './components/HowToPlay'
 import MainMenu from './components/MainMenu'
 import AudioQuickControls from './components/AudioQuickControls'
+import PrivacyPolicy from './components/PrivacyPolicy'
 import './App.css'
 import { initializeAudio, playSound, setMusicEnabled, setSoundEffectsEnabled } from './audio'
 import type { PuzzleDefinition } from './game/puzzle'
@@ -114,7 +115,14 @@ function AppHeader({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffect
 
 function SettingsDialog({ effectsOn, musicOn, onToggleEffects, onToggleMusic, onClose }: { effectsOn: boolean; musicOn: boolean; onToggleEffects: () => void; onToggleMusic: () => void; onClose: () => void }) {
   const language = useLanguage()
-  return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><button className="dialog-close" onClick={onClose} aria-label={t("Close settings")}>×</button><p className="screen-kicker">{t("MAKE YOURSELF AT HOME")}</p><h2 id="settings-title">{t("Settings")}</h2><button className="setting-row" onClick={onToggleEffects} aria-pressed={effectsOn}><span>{t("Sound Effects")}</span><span className={`switch ${effectsOn ? 'is-on' : ''}`}><span /></span><span className="setting-state">{t(effectsOn ? 'On' : 'Off')}</span></button><button className="setting-row" onClick={onToggleMusic} aria-pressed={musicOn}><span>{t("Music")}</span><span className={`switch ${musicOn ? 'is-on' : ''}`}><span /></span><span className="setting-state">{t(musicOn ? 'On' : 'Off')}</span></button><label className="language-setting"><span>{t("Language")}</span><select value={language} onChange={(event) => setLanguage(event.target.value as keyof typeof languages)}>{Object.entries(languages).map(([code, name]) => <option key={code} value={code} lang={code}>{name}</option>)}</select></label><button className="pill-button primary-button settings-done" onClick={onClose}>{t("Done")}</button></section></div>
+  const [privacyOpen, setPrivacyOpen] = useState(false)
+  const privacyButton = useRef<HTMLButtonElement>(null)
+  const closePrivacy = () => {
+    setPrivacyOpen(false)
+    requestAnimationFrame(() => privacyButton.current?.focus())
+  }
+  if (privacyOpen) return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closePrivacy() }}><PrivacyPolicy onClose={closePrivacy}/></div>
+  return <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="settings-dialog settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title"><button className="dialog-close" onClick={onClose} aria-label={t("Close settings")}>×</button><p className="screen-kicker">{t("MAKE YOURSELF AT HOME")}</p><h2 id="settings-title">{t("Settings")}</h2><button className="setting-row" onClick={onToggleEffects} aria-pressed={effectsOn}><span>{t("Sound Effects")}</span><span className={`switch ${effectsOn ? 'is-on' : ''}`}><span /></span><span className="setting-state">{t(effectsOn ? 'On' : 'Off')}</span></button><button className="setting-row" onClick={onToggleMusic} aria-pressed={musicOn}><span>{t("Music")}</span><span className={`switch ${musicOn ? 'is-on' : ''}`}><span /></span><span className="setting-state">{t(musicOn ? 'On' : 'Off')}</span></button><label className="language-setting"><span>{t("Language")}</span><select value={language} onChange={(event) => setLanguage(event.target.value as keyof typeof languages)}>{Object.entries(languages).map(([code, name]) => <option key={code} value={code} lang={code}>{name}</option>)}</select></label><button ref={privacyButton} className="privacy-setting" onClick={() => setPrivacyOpen(true)}>{t("Privacy Policy")}<span aria-hidden="true">→</span></button><button className="pill-button primary-button settings-done" onClick={onClose}>{t("Done")}</button></section></div>
 }
 
 export default App
