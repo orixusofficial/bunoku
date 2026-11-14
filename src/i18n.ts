@@ -1,16 +1,17 @@
 import { useSyncExternalStore } from 'react'
 import { translations } from './translations'
+import { gameStorage } from './playgama/storage.ts'
 
 export const languages = { en: 'English', es: 'Español', ar: 'العربية', hi: 'हिन्दी' } as const
 export type Language = keyof typeof languages
 function readLanguage(): Language {
-  try { const saved = localStorage.getItem('bunoku.language'); if (saved && saved in languages) return saved as Language } catch { /* Use English if storage is unavailable. */ }
+  try { const saved = ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : localStorage).getItem('bunoku.language'); if (saved && saved in languages) return saved as Language } catch { /* Use English if storage is unavailable. */ }
   return 'en'
 }
 let language = readLanguage()
 const listeners = new Set<() => void>()
 export function initializeLanguage(locale?: string) {
-  try { const saved = localStorage.getItem('bunoku.language'); if (saved && saved in languages) return } catch { /* Use SDK preference for this session. */ }
+  try { const saved = ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : localStorage).getItem('bunoku.language'); if (saved && saved in languages) return } catch { /* Use SDK preference for this session. */ }
   const code = locale?.toLowerCase().split(/[-_]/)[0]
   language = code && code in languages ? code as Language : 'en'
   listeners.forEach(listener => listener())
@@ -19,7 +20,7 @@ export function initializeLanguage(locale?: string) {
 export function setLanguage(next: Language) {
   if (!(next in languages)) return
   language = next
-  try { localStorage.setItem('bunoku.language', next) } catch { /* Keep this session's selection. */ }
+  try { ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : localStorage).setItem('bunoku.language', next) } catch { /* Keep this session's selection. */ }
   listeners.forEach((listener) => listener())
 }
 export function useLanguage() {

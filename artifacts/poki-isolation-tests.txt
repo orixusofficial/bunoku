@@ -1,0 +1,261 @@
+✔ Daily unlocks only after completing Level 10, one start per 24h across reloads and other actions (3.1814ms)
+✔ five free uses for each action, persistent independently; each rewarded ad adds three selected uses (0.6864ms)
+✔ clock rollback cannot reset cooldown; monotonic elapsed time and high water survive reload (0.4643ms)
+✔ failed writes and corrupt records never replenish allowances or grant attempts/rewards (0.5801ms)
+✔ legacy saved reward timestamp never blocks a new SDK-completed reward or resets balances (0.5609ms)
+✔ public asset URLs stay inside root, nested and configured hosting directories (256.8834ms)
+✔ production entry, font and worker remain portable without external font requests (7.8141ms)
+✔ initializes once; balanced loading; menu/pause/end/restart transitions; coalesces StrictMode (15.1733ms)
+✔ disabled, rejection=false: nonfatal with no feature calls (6.0979ms)
+✔ local, rejection=true: nonfatal with no feature calls (2.6317ms)
+✔ platform mute overrides both audio channels and preserves independent preferences (103.7366ms)
+✔ rewarded success grants once; pending request does not mute; duplicate requests/callbacks are ignored (4.1022ms)
+✔ adsDisabled is returned faithfully; a manual later attempt reaches the SDK and never grants (6.4237ms)
+✔ Hint/Undo requests during gameplay use official SDK callbacks; puzzle loading still blocks requests (2.9542ms)
+✔ adsDisabled: no reward, audio recovers and ordinary gameplay can resume (2.7324ms)
+✔ adblock: no reward, audio recovers and ordinary gameplay can resume (2.5104ms)
+✔ adCooldown: no reward, audio recovers and ordinary gameplay can resume (7.7779ms)
+✔ unfilled: no reward, audio recovers and ordinary gameplay can resume (7.5452ms)
+✔ ad errors, unfilled, cancelled, disabled and failed reward saves grant nothing and recover (31.1719ms)
+✔ a script timeout does not permanently poison initialization; a later real SDK can initialize before a request (3009.4574ms)
+✔ a request waits for initialization and logs the actual SDK error without granting (6.8296ms)
+✔ Daily start, full progress, Undo history and cooldown survive reload; unfinished attempt cannot be replaced (23.661ms)
+✔ invalid Daily data and blocked saves cannot consume or replace a valid attempt (17.745ms)
+✔ 4x4: sparse segments cover every horizontal, vertical and diagonal cell (79.9329ms)
+✔ 6x6: sparse segments cover every horizontal, vertical and diagonal cell (44.5779ms)
+✔ 8x8: sparse segments cover every horizontal, vertical and diagonal cell (8.2316ms)
+✔ 9x9: sparse segments cover every horizontal, vertical and diagonal cell (16.2198ms)
+✔ gaps and corner-only contacts do not mark neighbouring cells (13.5989ms)
+✔ GD initializes and preloads once with the real configured ID; no ad is shown by initialization (239.961ms)
+✔ script errors and startup timeout are non-fatal and never request ads (99.2181ms)
+✔ GD pause/resume, tab changes and dialogs restore audio without changing user preferences (38.1574ms)
+✔ GD hint: completion grants exactly 3 once, persists independently and never auto-consumes (39.3703ms)
+✔ GD undo: completion grants exactly 3 once, persists independently and never auto-consumes (25.4202ms)
+✔ GD hint: early-close grants zero and allows a later attempt (27.8269ms)
+✔ GD hint: unfilled grants zero and allows a later attempt (35.7246ms)
+✔ GD hint: sdk-error grants zero and allows a later attempt (34.453ms)
+✔ GD hint: throw grants zero and allows a later attempt (25.685ms)
+✔ GD undo: early-close grants zero and allows a later attempt (43.0509ms)
+✔ GD undo: unfilled grants zero and allows a later attempt (34.114ms)
+✔ GD undo: sdk-error grants zero and allows a later attempt (28.2808ms)
+✔ GD undo: throw grants zero and allows a later attempt (42.0645ms)
+✔ GD promise completion cannot unmute an ad until SDK_GAME_START signals resume (23.8757ms)
+✔ GD event-driven showAd without a promise finishes on resume and ignores duplicate completion (45.6393ms)
+✔ GD interstitials are explicitly requested, duplicate-proof, SDK-regulated and cannot grant rewards (38.2317ms)
+✔ GDPR opt-outs are respected without starting independent tracking or ads (35.1326ms)
+✔ GD target routes both legacy platform hooks to one normalized adapter; no source rewriting (2.4807ms)
+✔ GD resume event releases gameplay even if the ad promise never settles (24.3485ms)
+✔ How to Play lists every binding, preserves rules, and handles Escape and navigation safely (317.3038ms)
+✔ desktop, phone and large-tablet capability rules are scoped to How to Play (2.385ms)
+✔ Normal every mapping, boundaries, rabbit/X, brush, repeat and modal gating (47.8313ms)
+✔ Daily every mapping, boundaries, rabbit/X, brush, repeat and modal gating (23.0715ms)
+✔ actual GameScreen keyboard listeners, form/settings guards, Stay/Main Menu and repeat popup (679.6201ms)
+✔ mouse: complete fresh-player steps 1–5 and finish the real puzzle (104.5274ms)
+✔ touch: complete fresh-player steps 1–5 and finish the real puzzle (57.2479ms)
+✔ Undo/Restart/Skip and already-marked drag never trap the guide (22.4687ms)
+✔ Level 2 and Daily remain unrestricted and do not save tutorial completion (42.4004ms)
+✔ blocked tutorial highlights correspond only to actual row/column/touch conflicts (478.6628ms)
+✔ real Hint/Undo handlers spend only successful uses and never refund on Restart or reload (92.4298ms)
+✔ hint: zero balance requests once, grants 3 without consuming, retries after errors (17.4838ms)
+✔ undo: zero balance requests once, grants 3 without consuming, retries after errors (20.8421ms)
+✔ 4x4 mouse: fast row, column and both diagonal drags lose no Xs (114.8045ms)
+✔ 4x4 touch: fast row, column and both diagonal drags lose no Xs (152.6082ms)
+✔ 4x4: coalesced snake, revisits, final-up and Undo preserve every action (43.4587ms)
+✔ 6x6 mouse: fast row, column and both diagonal drags lose no Xs (191.3757ms)
+✔ 6x6 touch: fast row, column and both diagonal drags lose no Xs (192.0081ms)
+✔ 6x6: coalesced snake, revisits, final-up and Undo preserve every action (54.9133ms)
+✔ 8x8 mouse: fast row, column and both diagonal drags lose no Xs (178.2837ms)
+✔ 8x8 touch: fast row, column and both diagonal drags lose no Xs (269.4081ms)
+✔ 8x8: coalesced snake, revisits, final-up and Undo preserve every action (82.7977ms)
+✔ 9x9 mouse: fast row, column and both diagonal drags lose no Xs (173.3543ms)
+✔ 9x9 touch: fast row, column and both diagonal drags lose no Xs (159.8484ms)
+✔ 9x9: coalesced snake, revisits, final-up and Undo preserve every action (46.2667ms)
+✔ touch drag preserves rabbits, locked carrots and existing Xs; cancellation never places a rabbit (32.2787ms)
+✔ Playgama Reset uses an in-game confirmation and resets only the current puzzle (34.5161ms)
+✔ Playgama mouse: accepted discovery dispatches audio in the input handler exactly once (14.6265ms)
+✔ Playgama touch: accepted discovery dispatches audio in the input handler exactly once (25.1603ms)
+{"level":1,"size":4,"puzzles":30,"maxGenerationMs":27}
+{"level":2,"size":6,"puzzles":30,"maxGenerationMs":6}
+{"level":5,"size":8,"puzzles":30,"maxGenerationMs":15}
+{"level":10,"size":9,"puzzles":30,"maxGenerationMs":18}
+{"level":15,"size":8,"puzzles":30,"maxGenerationMs":44}
+{"level":20,"size":9,"puzzles":30,"maxGenerationMs":71}
+{"levels":[2,12,22],"improvedComparisons":25,"comparisons":40}
+{"levels":[5,15,25],"improvedComparisons":19,"comparisons":40}
+{"levels":[10,20,30],"improvedComparisons":22,"comparisons":40}
+✔ exact level schedule, including precedence at multiples of ten (2.2494ms)
+✔ level 1: 30 real 4x4 puzzles finish through gameplay and hints (135.8514ms)
+✔ level 2: 30 real 6x6 puzzles finish through gameplay and hints (82.0068ms)
+✔ level 5: 30 real 8x8 puzzles finish through gameplay and hints (187.2635ms)
+✔ level 10: 30 real 9x9 puzzles finish through gameplay and hints (375.639ms)
+✔ level 15: 30 real 8x8 puzzles finish through gameplay and hints (683.7332ms)
+✔ level 20: 30 real 9x9 puzzles finish through gameplay and hints (973.6886ms)
+✔ later levels select harder deduction arrangements on the same grid size (4598.123ms)
+✔ normal progress persists, is monotonic, and tolerates unavailable storage (6.202ms)
+✔ every grid uses the existing sound paths and one play per sound request (53.7311ms)
+✔ SDK locale chooses all supported languages; explicit manual preference survives SDK changes and reload (352.5778ms)
+[Bunoku discovery timing] {"cueOriginalMs":1000,"cueAudibleMs":239.99999999999994,"voiceLeadingSilenceMs":490,"voiceGapMs":0}
+[Bunoku discovery timing] {"cueOriginalMs":1000,"cueAudibleMs":239.99999999999994,"voiceLeadingSilenceMs":490,"voiceGapMs":0}
+✔ preloaded discovery schedules cue and voice contiguously, trimming only edge silence (287.5571ms)
+[Bunoku discovery timing] {"cueOriginalMs":1000,"cueAudibleMs":239.99999999999994,"voiceLeadingSilenceMs":490,"voiceGapMs":0}
+Discovery playback fallback: Error: Discovery sound unavailable: foundbunny
+    at evalmachine.<anonymous>:30:23
+✔ Sound Effects/platform mute silences the discovery channel and prevents new queued speech (57.2827ms)
+✔ audio decode/network failure safely uses the existing sequential player once (37.758ms)
+✔ iframe-safe Reset confirmation supports Stay, focus, duplicate clicks and confirm without browser modals (29.3452ms)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+✔ Bridge initializes once and hydrates saves before synchronous gameplay reads (322.5759ms)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] request busy {"kind":"rewarded","interstitial":"closed","rewarded":"closed"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"opened"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"rewarded"}
+[Bunoku Playgama] request busy {"kind":"rewarded","interstitial":"closed","rewarded":"rewarded"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] request busy {"kind":"rewarded","interstitial":"closed","rewarded":"closed"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"opened"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"rewarded"}
+[Bunoku Playgama] request busy {"kind":"rewarded","interstitial":"closed","rewarded":"rewarded"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"failed"}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"closed"}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"failed"}
+[Bunoku Playgama] request unsupported {"kind":"rewarded"}
+[Bunoku Playgama] request starts {"kind":"interstitial"}
+✔ platform pause, tab visibility and audio state mute without changing user preferences (90.0852ms)
+✔ hint: rewarded only grants 3 once, preserves other balance and never auto-consumes (64.8286ms)
+✔ undo: rewarded only grants 3 once, preserves other balance and never auto-consumes (46.9719ms)
+[Bunoku Playgama] ad state {"kind":"interstitial","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"interstitial","state":"failed"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request rejected: adapter not initialized {}
+[Bunoku Playgama] request rejected: adapter not initialized {}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+✔ failed, cancelled and unsupported ads grant nothing; later retry and Bridge interstitial skips recover (99.3246ms)
+✔ Bridge storage batches changes, persists Daily ledger and reports save failure (88.175ms)
+✔ Playgama build uses module routing and a separate entry, without source transforms (3.352ms)
+✔ SDK/storage initialization failure cannot send ready, request ads or silently replace saves (84.3191ms)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request busy {"kind":"interstitial","interstitial":"closed","rewarded":"closed"}
+[Bunoku Playgama] request starts {"kind":"interstitial"}
+✔ level start is deduplicated; outcomes and modal pause report correctly (65.9326ms)
+[Bunoku Playgama] ad state {"kind":"interstitial","state":"opened"}
+[Bunoku Playgama] ad state {"kind":"interstitial","state":"closed"}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+Playgama ad unavailable: Error: unavailable
+    at f.sdk.advertisement.showRewarded (file:///D:/bunoku/tests/playgama.test.mjs:169:52)
+    at show (evalmachine.<anonymous>:216:25)
+    at evalmachine.<anonymous>:228:13
+    at new Promise (<anonymous>)
+    at requestAd (evalmachine.<anonymous>:166:12)
+    at Object.requestRewardedAd (evalmachine.<anonymous>:231:45)
+    at TestContext.<anonymous> (file:///D:/bunoku/tests/playgama.test.mjs:170:33)
+    at async Test.run (node:internal/test_runner/test:1409:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+✔ interstitial break locks immediately, ignores duplicate clicks and recovers from SDK throws (72.2697ms)
+✔ real Daily progress and cooldown survive rehydration through Bridge storage (177.7965ms)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"opened"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"closed"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request unsupported {"kind":"rewarded"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"failed"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+Playgama ad unavailable: Error: host request error
+    at f.sdk.advertisement.showRewarded (file:///D:/bunoku/tests/playgama.test.mjs:212:67)
+    at show (evalmachine.<anonymous>:216:25)
+    at evalmachine.<anonymous>:228:13
+    at new Promise (<anonymous>)
+    at requestAd (evalmachine.<anonymous>:166:12)
+    at Object.requestRewardedAd (evalmachine.<anonymous>:231:45)
+    at TestContext.<anonymous> (file:///D:/bunoku/tests/playgama.test.mjs:213:26)
+    at async Test.run (node:internal/test_runner/test:1409:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"opened"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"closed"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request unsupported {"kind":"rewarded"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"loading"}
+[Bunoku Playgama] ad state {"kind":"rewarded","state":"failed"}
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+[Bunoku Playgama] request starts {"kind":"rewarded"}
+Playgama ad unavailable: Error: host request error
+    at f.sdk.advertisement.showRewarded (file:///D:/bunoku/tests/playgama.test.mjs:212:67)
+    at show (evalmachine.<anonymous>:216:25)
+    at evalmachine.<anonymous>:228:13
+    at new Promise (<anonymous>)
+    at requestAd (evalmachine.<anonymous>:166:12)
+    at Object.requestRewardedAd (evalmachine.<anonymous>:231:45)
+    at TestContext.<anonymous> (file:///D:/bunoku/tests/playgama.test.mjs:213:26)
+    at async Test.run (node:internal/test_runner/test:1409:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+[Bunoku Playgama] initialized {"rewardedSupported":true}
+✔ fresh level waits for platform resume and does not emit a duplicate resumed event (52.75ms)
+✔ hint: early-close grants zero and restores interaction/audio (90.693ms)
+✔ hint: unavailable grants zero and restores interaction/audio (45.0375ms)
+✔ hint: error grants zero and restores interaction/audio (85.2002ms)
+✔ hint: throw grants zero and restores interaction/audio (87.0843ms)
+✔ undo: early-close grants zero and restores interaction/audio (53.6797ms)
+✔ undo: unavailable grants zero and restores interaction/audio (64.1249ms)
+✔ undo: error grants zero and restores interaction/audio (127.7385ms)
+✔ undo: throw grants zero and restores interaction/audio (183.1373ms)
+✔ Reset dialog pause is idempotent and preserves host mute on release (85.1421ms)
+✔ Poki initializes once, signals loading after ready, and does not request ads during startup (493.7265ms)
+✔ missing SDK script is non-fatal and no ad is requested (89.8965ms)
+✔ SDK initialization rejection is non-fatal (100.5072ms)
+✔ gameplay start/stop is deduplicated and pause, visibility, and audio recover (72.9905ms)
+✔ successful hint rewarded break grants exactly 3 credits once, without consuming them (60.6559ms)
+✔ successful undo rewarded break grants exactly 3 credits once, without consuming them (47.984ms)
+✔ rewarded skipped grants nothing and allows a later request (74.4057ms)
+✔ rewarded rejected grants nothing and allows a later request (45.2226ms)
+✔ rewarded throws grants nothing and allows a later request (40.3896ms)
+✔ choosing the standard continue option dismisses the offer without requesting an ad or granting a reward (64.8462ms)
+✔ existing control diagnostic selects Undo without changing the shared reward API (62.2036ms)
+✔ menu wrapper suppresses commercial requests and restores later transition opportunities (45.0062ms)
+✔ commercial breaks are explicit, pause and mute while shown, and resume gameplay after completion (72.543ms)
+✔ commercial-break errors restore audio and allow gameplay to continue (64.6277ms)
+✔ build routes SDK imports to one Poki adapter and keeps the Poki SDK script in its isolated entry (2.9451ms)
+✔ Settings opens Privacy Policy and returns without changing audio or language (548.4844ms)
+✔ Policy has a scrollable English article, closes with Escape, and contains Tab focus (77.2604ms)
+{"size":4,"boards":100,"distinctLayouts":87,"distinctSolutions":2,"maxMs":7,"averageMs":1}
+{"size":6,"boards":100,"distinctLayouts":100,"distinctSolutions":62,"maxMs":10,"averageMs":2}
+{"size":8,"boards":100,"distinctLayouts":100,"distinctSolutions":100,"maxMs":21,"averageMs":4}
+{"size":9,"boards":100,"distinctLayouts":100,"distinctSolutions":100,"maxMs":25,"averageMs":5}
+✔ 4x4: 100 boards have complete, independently verified visible progressions (132.0143ms)
+✔ 6x6: 100 boards have complete, independently verified visible progressions (253.5062ms)
+✔ 8x8: 100 boards have complete, independently verified visible progressions (736.0362ms)
+✔ 9x9: 100 boards have complete, independently verified visible progressions (1358.0135ms)
+✔ visible pencil counts are distinct from rule deductions and automatic Xs are reversible (5.0328ms)
+✔ normal: real game adapter starts hidden and finishes using real hints and placements (24.0288ms)
+✔ daily: real game adapter starts hidden and finishes using real hints and placements (42.683ms)
+✔ mistakes retain life semantics; history restores manual marks and derived eliminations (3.4524ms)
+✔ rabbit placement leaves eliminated cells unmarked while logical counts and validation stay correct (4.2637ms)
+✔ game button badges include rewarded uses, independently, and return to video icons at zero (601.3306ms)
+ℹ tests 139
+ℹ suites 0
+ℹ pass 139
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14387.8373

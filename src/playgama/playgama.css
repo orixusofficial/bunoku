@@ -1,0 +1,20 @@
+/* These rules ship only in the Playgama archive. */
+html.playgama-build, .playgama-build body, .playgama-build #root { height: 100%; min-height: 0; overflow: hidden; }
+.playgama-build .game-view { height: 100%; }
+.playgama-build .menu-screen, .playgama-build .tutorial-screen, .playgama-build .simple-screen { height: 100svh; min-height: 0; overflow: hidden; }
+.playgama-build .menu-hero { min-height: 0; }
+.playgama-build .menu-mascot { min-height: 0; height: min(27svh, 200px); flex-shrink: 1; }
+.playgama-build .tutorial-content { min-height: 0; overflow-y: auto; justify-content: flex-start; }
+.playgama-build .game-shell { height: 100svh; min-height: 0; overflow: hidden; }
+.playgama-build .game-content { min-height: 0; overflow-y: auto; }
+.playgama-build .board, .playgama-build .cell { -webkit-touch-callout: none; }
+.playgama-build .control-button span { min-width: 0; }
+.playgama-build .control-button:has(.reward-icon) { font-size: 11px; padding-inline: 6px; gap: 4px; }
+.playgama-build .settings-link svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+@media (max-height: 600px) {
+  .playgama-build .menu-mascot { height: min(23svh, 110px); margin-bottom: 0; }
+  .playgama-build .menu-hero h1 { font-size: 26px; }
+  .playgama-build .menu-subtitle { margin-block: 4px 10px; font-size: 14px; }
+  .playgama-build .menu-actions { gap: 7px; }
+  .playgama-build .play-button { min-height: 46px; }
+}

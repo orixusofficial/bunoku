@@ -4,6 +4,9 @@ import type { CellEvents } from './PuzzleCell'
 import type { DailyProgress } from '../game/dailyState.ts'
 import { DailyCountdown } from './DailyAccess'
 import { trackGameplay, confirmDuringGameplay, requestRewardedAd, logAdDiagnostic } from '../crazygames.ts'
+import { confirmPuzzleReset } from '../playgama/resetConfirmation.ts'
+import { playDiscovery } from '../playgama/discoveryAudio.ts'
+import { isPlatformPaused, adsAvailable, showInterstitialAtBreak, reportLevelStart, reportOutcome } from '../playgama/platform.ts'
 import { allowances } from '../game/allowances.ts'
 import { useAllowances } from '../useAllowances'
 import { assetUrl } from '../assetUrl.ts'
@@ -63,8 +66,8 @@ function ControlIcon({ name }: { name: 'hint' | 'undo' | 'restart' }) {
 }
 function BottomControls({ onHint, onUndo, onRestart, canUndo, tutorialStep = 0, restoreKeyboardFocus }: { onHint: () => void; onUndo: () => void; onRestart: () => void; canUndo: boolean; tutorialStep?: TutorialStep; restoreKeyboardFocus: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
   const balance = useAllowances()
-  const count = (remaining: number, kind: string) => remaining > 0 ? <span className="control-count" aria-label={t("{count} {kind} remaining", { count: remaining, kind })}>{remaining}</span> : <RewardIcon/>
-  return <nav className="controls" aria-label={t("Puzzle controls")}><button className={`control-button${tutorialStep === 4 ? ' tutorial-hint' : ''}`} onClick={(event) => { onHint(); restoreKeyboardFocus(event) }} disabled={tutorialStep >= 1 && tutorialStep <= 3}><ControlIcon name="hint"/><span>{t("Hint")}</span>{count(balance.hintFree + balance.hintCredits, t("Hints"))}</button><button className="control-button" onClick={(event) => { onUndo(); restoreKeyboardFocus(event) }} disabled={!canUndo && balance.undoFree + balance.undoCredits > 0}><ControlIcon name="undo"/><span>{t("Undo")}</span>{count(balance.undoFree + balance.undoCredits, t("Undos"))}</button><button className="control-button" onClick={(event) => { onRestart(); restoreKeyboardFocus(event) }}><ControlIcon name="restart"/><span>{t("Restart")}</span></button></nav>
+  const count = (remaining: number, kind: string) => remaining > 0 ? <span className="control-count" aria-label={t("{count} {kind} remaining", { count: remaining, kind })}>{remaining}</span> : (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && !adsAvailable() ? <span className="control-count">0</span> : <RewardIcon/>
+  return <nav className="controls" aria-label={t("Puzzle controls")}><button className={`control-button${tutorialStep === 4 ? ' tutorial-hint' : ''}`} onClick={(event) => { onHint(); restoreKeyboardFocus(event) }} disabled={(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? tutorialStep >= 1 && tutorialStep <= 3 || balance.hintFree + balance.hintCredits === 0 && !adsAvailable() : tutorialStep >= 1 && tutorialStep <= 3}><ControlIcon name="hint"/><span>{(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && balance.hintFree + balance.hintCredits === 0 && adsAvailable() ? t("Watch ad: +3 Hints") : t("Hint")}</span>{count(balance.hintFree + balance.hintCredits, t("Hints"))}</button><button className="control-button" onClick={(event) => { onUndo(); restoreKeyboardFocus(event) }} disabled={(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? !canUndo && balance.undoFree + balance.undoCredits > 0 || balance.undoFree + balance.undoCredits === 0 && !adsAvailable() : !canUndo && balance.undoFree + balance.undoCredits > 0}><ControlIcon name="undo"/><span>{(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && balance.undoFree + balance.undoCredits === 0 && adsAvailable() ? t("Watch ad: +3 Undos") : t("Undo")}</span>{count(balance.undoFree + balance.undoCredits, t("Undos"))}</button><button className="control-button" onClick={(event) => { onRestart(); restoreKeyboardFocus(event) }}><ControlIcon name="restart"/><span>{t("Restart")}</span></button></nav>
 }
 
 function TutorialPrompt({ step, onSkip, onContinue }: { step: TutorialStep; onSkip: () => void; onContinue: () => void }) {
@@ -98,6 +101,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const [generationError, setGenerationError] = useState('')
   const generationAbort = useRef<AbortController | null>(null)
   const level = puzzle.level
+
   const completed = isComplete(puzzle, board.cells)
   const gameOver = board.lives === 0
   const [tutorialProgress, setTutorialProgress] = useState<TutorialStep>(() => startingTutorialStep(initialPuzzle, daily))
@@ -111,7 +115,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const [menuConfirmation, setMenuConfirmation] = useState(false)
   const rewardPending = useRef(false)
   const [rewardBusy, setRewardBusy] = useState(false)
-  useEffect(() => trackGameplay(active && !completed && !gameOver && !preparingPuzzle && !menuConfirmation && !rewardBusy), [active, completed, gameOver, preparingPuzzle, menuConfirmation, rewardBusy])
+  useEffect((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { if (active && !completed && !gameOver) reportLevelStart(puzzle); return trackGameplay(active && !completed && !gameOver && !preparingPuzzle && !menuConfirmation && !rewardBusy) } : () => trackGameplay(active && !completed && !gameOver && !preparingPuzzle && !menuConfirmation && !rewardBusy), [active, completed, gameOver, preparingPuzzle, menuConfirmation, rewardBusy])
 
   useEffect(() => {
     if (!daily || !initialDailyProgress) return
@@ -145,6 +149,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const placeRabbit = (index: number) => {
     const board = currentBoard.current
     if (menuConfirmation || rewardPending.current) return
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || tutorialStep === 2 || tutorialStep === 3) return
     if (failures.some((failure) => failure.index === index)) return
@@ -156,12 +161,12 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
       const cells = [...result.state.cells]
       cells[index] = 'empty'
       commit({ ...result.state, cells })
-      if (result.state.lives === 0 && !endTimer.current) { playSound('fail'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500) }
+      if (result.state.lives === 0 && !endTimer.current) { if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) reportOutcome('fail', level); playSound('fail'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500) }
       setNotice(result.state.lives === 0 ? 'Oh no, out of carrots!' : 'That rabbit is not part of this puzzle solution.')
       return
     }
     const sequence = ['nice', 'wow', 'excellent', 'unrealistic'] as const
-    const found = playSound('foundbunny')
+    const found = (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? null : playSound('foundbunny')
     const voice = sequence[combo.current % sequence.length]
     const labels = { nice: 'NICE! ✨', wow: 'WOW! ✨', excellent: 'EXCELLENT! ✨', unrealistic: 'UNREALISTIC! ✨' } as const
     const celebration = { id: ++celebrationId.current, index, text: labels[voice] }
@@ -169,9 +174,12 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     combo.current += 1
     let played = false
     const playVoice = () => { if (played) return; played = true; void playSound(voice) }
-    found.addEventListener('ended', playVoice, { once: true })
-    found.addEventListener('error', playVoice, { once: true })
-    if (isComplete(puzzle, result.state.cells) && !endTimer.current) { playSound('win'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500); if (!daily) saveNormalLevel(level + 1) }
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) playDiscovery(voice, playSound)
+    else {
+      found!.addEventListener('ended', playVoice, { once: true })
+      found!.addEventListener('error', playVoice, { once: true })
+    }
+    if (isComplete(puzzle, result.state.cells) && !endTimer.current) { if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) reportOutcome('win', level); playSound('win'); endTimer.current = setTimeout(() => { endTimer.current = null; setEndScreenReady(true) }, 500); if (!daily) saveNormalLevel(level + 1) }
     commit(result.state)
     if (tutorialStep === 1) { setTutorialProgress(2); lastTouchTap.current = null; drawing.current = null }
     else if (tutorialStep === 4) finishTutorial()
@@ -179,6 +187,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   const markCell = (index: number, drawingAcross = false) => {
     const board = currentBoard.current
     if (menuConfirmation || rewardPending.current) return
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) return
     if (endTimer.current) return
     if ((tutorialStep === 1 && index !== target) || ((tutorialStep === 2 || tutorialStep === 3) && !blockedTutorialCells.includes(index))) return
     if (failures.some((failure) => failure.index === index)) return
@@ -257,6 +266,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   }
   const onHint = () => {
     if (menuConfirmation || rewardPending.current) return
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) return
     if (tutorialStep >= 1 && tutorialStep <= 3) return
     if (gameOver || completed || endTimer.current) return
     const current = allowances.status()
@@ -273,6 +283,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   }
   const onUndo = () => {
     if (menuConfirmation || rewardPending.current) return
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) return
     if (endTimer.current) return
     const current = allowances.status()
     if (!current.available) { setNotice('Your usage could not be saved. Please check browser storage.'); return }
@@ -289,8 +300,17 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
   }
   const onRestart = () => {
     if (menuConfirmation || rewardPending.current) return
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) return
     if (endTimer.current) return
     if (daily) { setNotice('Daily Puzzle is unavailable. Please return to the menu.'); return }
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) {
+      confirmPuzzleReset(t('Restart this puzzle? Your rabbits and marks will be cleared.'), t('Stay'), t('Restart'), () => {
+        void showInterstitialAtBreak()
+        if (tutorialStep >= 1 && tutorialStep <= 4) setTutorialProgress(1)
+        updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); drawing.current = null
+      })
+      return
+    }
     if (!confirmDuringGameplay(t('Restart this puzzle? Your rabbits and marks will be cleared.'))) return
     if (tutorialStep >= 1 && tutorialStep <= 4) setTutorialProgress(1)
     updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]); drawing.current = null
@@ -302,15 +322,15 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
       if (root && !root.closest('[hidden]') && active) root.focus({ preventScroll: true })
     })
   }
-  const startOver = () => { if (daily) return; if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
+  const startOver = () => { if (daily) return; if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) { if (isPlatformPaused()) return; void showInterstitialAtBreak() } if (endTimer.current) clearTimeout(endTimer.current); endTimer.current = null; setEndScreenReady(false); updateBoard(createInitialState(puzzle)); setHistory([]); setFailureHistory([]); setHintCell(null); setUsedHints([]); setNotice(''); setFailures([]) }
   // Rebind to the latest gameplay handlers without clearing a held Space brush.
   useEffect(() => {
     const handlers = keyboardHandlers({
-      enabled: () => !!gameRoot.current && !gameRoot.current.closest('[hidden]') && !rewardPending.current && !document.hidden && !document.querySelector('[role="dialog"]') && !completed && !gameOver && !endTimer.current,
+      enabled: () => !((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && isPlatformPaused()) && !!gameRoot.current && !gameRoot.current.closest('[hidden]') && !rewardPending.current && !document.hidden && !document.querySelector('[role="dialog"]') && !completed && !gameOver && !endTimer.current,
       size: puzzle.size,
       selected: () => selectedCell.current ?? target ?? 0,
       select: (index) => { selectedCell.current = index; setKeyboardSelection(index) },
-      place: placeRabbit, mark: markCell, hint: onHint, undo: onUndo, restart: onRestart,
+      place: placeRabbit, mark: markCell, hint: (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { const b = allowances.status(); if (b.hintFree + b.hintCredits > 0) onHint() } : onHint, undo: (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { const b = allowances.status(); if (b.undoFree + b.undoCredits > 0) onUndo() } : onUndo, restart: onRestart,
       menu: () => { drawing.current = null; lastTouchTap.current = null; setMenuConfirmation(true) },
       brushEnd: (visited) => { if (tutorialStep === 3 && [...visited].filter((index) => blockedTutorialCells.includes(index)).length >= 2) setTutorialProgress(4) },
     }, brush.current)
@@ -333,6 +353,7 @@ export default function GameScreen({ musicOn, soundEffectsOn, onToggleMusic, onT
     generationAbort.current = controller
     setPreparingPuzzle(true); setGenerationError('')
     try {
+      if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) await showInterstitialAtBreak()
       const next = daily ? await createPuzzleAsync(9, 0, true, controller.signal) : await createNormalPuzzleAsync(level + 1, controller.signal)
       if (controller.signal.aborted) return
       if (!daily) saveNormalLevel(next.level)

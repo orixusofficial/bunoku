@@ -5,6 +5,7 @@
     "": {
       "name": "bunoku",
       "dependencies": {
+        "@playgama/bridge": "2.4.2",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
       },
@@ -102,6 +103,8 @@
     "@keyv/serialize": ["@keyv/serialize@1.1.1", "", {}, "sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.156.0", "", {}, "sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw=="],
+
+    "@playgama/bridge": ["@playgama/bridge@2.4.2", "", {}, "sha512-PqK3kRpyzSHUupvL9141gL3ybpZgeq25RajQzHNsgiIHRnD/j+g/5dcOlIpOg3zkwBweuw2mAjrVqSC2xm7utA=="],
 
     "@rolldown/binding-android-arm-eabi": ["@rolldown/binding-android-arm-eabi@1.2.18", "", { "os": "android", "cpu": "arm" }, "sha512-ubTG+4KlidvioxjOFdsdEa2F6JVGZb8m2ByJUqQ7fYzUeT1cEn194POcsQ10PKH4p//q0YQn4SB3YpSuzcA1Yg=="],
 

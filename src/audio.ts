@@ -1,6 +1,7 @@
 export type SoundName = 'Xon' | 'Xoff' | 'foundbunny' | 'entery' | 'nice' | 'wow' | 'excellent' | 'unrealistic' | 'failbite' | 'win' | 'fail'
 
 import { assetUrl } from './assetUrl.ts'
+import { preloadDiscoveryAudio, resumeDiscoveryAudio, setDiscoveryMuted } from './playgama/discoveryAudio.ts'
 
 let soundEffectsEnabled = true
 let musicEnabled = false
@@ -44,25 +45,29 @@ export function setMusicEnabled(enabled: boolean) {
 
 export function setSoundEffectsEnabled(enabled: boolean) {
   soundEffectsEnabled = enabled
+  if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) setDiscoveryMuted(!enabled || platformMuted || adMuted || document.hidden)
   effects.forEach((audio) => { audio.muted = !enabled || platformMuted || adMuted })
 }
 
 export function setPlatformMuted(muted: boolean) {
   platformMuted = muted
+  if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) setDiscoveryMuted(!soundEffectsEnabled || muted || adMuted || document.hidden)
   effects.forEach((audio) => { audio.muted = !soundEffectsEnabled || muted || adMuted })
   resumeMusic()
 }
 
 export function setAdMuted(muted: boolean) {
   adMuted = muted
+  if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) setDiscoveryMuted(!soundEffectsEnabled || platformMuted || muted || document.hidden)
   effects.forEach((audio) => { audio.muted = !soundEffectsEnabled || platformMuted || muted })
   resumeMusic()
 }
 
 export function initializeAudio() {
   initialized = true
-  const onInteraction = () => resumeMusic()
-  const onVisibilityChange = () => resumeMusic()
+  if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) preloadDiscoveryAudio()
+  const onInteraction = (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { resumeDiscoveryAudio(); resumeMusic() } : () => resumeMusic()
+  const onVisibilityChange = (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { setDiscoveryMuted(!soundEffectsEnabled || platformMuted || adMuted || document.hidden); resumeMusic() } : () => resumeMusic()
   document.addEventListener('pointerdown', onInteraction, true)
   document.addEventListener('click', onInteraction, true)
   document.addEventListener('keydown', onInteraction, true)

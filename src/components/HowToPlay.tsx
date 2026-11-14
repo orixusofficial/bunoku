@@ -21,7 +21,7 @@ const keyboardControls = [
 ]
 
 function KeyboardHelp() {
-  return <section className="keyboard-help" aria-labelledby="keyboard-help-title"><h2 id="keyboard-help-title">{t('PC keyboard controls')}</h2><div className="keyboard-help-columns"><table><thead><tr><th scope="col">{t('Key')}</th><th scope="col">{t('Action')}</th></tr></thead><tbody>{keyboardControls.map(([key, action]) => <tr key={key}><th scope="row"><kbd>{t(key)}</kbd></th><td>{t(action)}</td></tr>)}</tbody></table><div className="keyboard-selection-help"><h3>{t('Move your selection')}</h3><ul>{[['W / ↑', 'Move up'], ['S / ↓', 'Move down'], ['A / ←', 'Move left'], ['D / →', 'Move right'], ['Enter', 'Select/place rabbit']].map(([key, action]) => <li key={key}><kbd>{key}</kbd><span>{t(action)}</span></li>)}</ul></div></div></section>
+  return <section className="keyboard-help" aria-labelledby="keyboard-help-title"><h2 id="keyboard-help-title">{t('PC keyboard controls')}</h2><div className="keyboard-help-columns"><table><thead><tr><th scope="col">{t('Key')}</th><th scope="col">{t('Action')}</th></tr></thead><tbody>{((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? keyboardControls.filter(([key]) => key !== 'Esc') : keyboardControls).map(([key, action]) => <tr key={key}><th scope="row"><kbd>{t(key)}</kbd></th><td>{t(action)}</td></tr>)}</tbody></table><div className="keyboard-selection-help"><h3>{t('Move your selection')}</h3><ul>{[['W / ↑', 'Move up'], ['S / ↓', 'Move down'], ['A / ←', 'Move left'], ['D / →', 'Move right'], ['Enter', 'Select/place rabbit']].map(([key, action]) => <li key={key}><kbd>{key}</kbd><span>{t(action)}</span></li>)}</ul></div></div></section>
 }
 
 function RuleGrid({ variant }: { variant: string }) {
@@ -37,6 +37,7 @@ function RuleIllustration({ variant }: { variant: string }) {
 export default function HowToPlay({ musicOn, soundEffectsOn, onToggleMusic, onToggleSoundEffects, onPlay, onBack }: { musicOn: boolean; soundEffectsOn: boolean; onToggleMusic: () => void; onToggleSoundEffects: () => void; onPlay: () => void; onBack: () => void }) {
   const [menuConfirmation, setMenuConfirmation] = useState(false)
   useEffect(() => {
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION)) return
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || document.hidden || event.ctrlKey || event.altKey || event.metaKey) return
       const element = event.target instanceof HTMLElement ? event.target : null

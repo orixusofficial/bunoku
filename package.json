@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:playgama": "tsc -b && vite build --mode playgama",
+    "build:gamedistribution": "tsc -b && vite build --mode gamedistribution",
+    "build:poki": "tsc -b && vite build --mode poki",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@playgama/bridge": "2.4.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

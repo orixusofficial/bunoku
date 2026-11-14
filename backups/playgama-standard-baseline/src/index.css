@@ -1,0 +1,30 @@
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./assets/fonts/Nunito-Variable.ttf') format('truetype');
+}
+
+:root {
+  font-family: 'Nunito', sans-serif;
+  color: #687565;
+  background: #F4F1E8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  --cream: #F4F1E8;
+  --sage: #A8B99A;
+  --sand: #D9C7A3;
+  --forest: #687565;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
+body { min-height: 100vh; min-height: 100svh; }
+button, a { font: inherit; }
+button { color: inherit; }

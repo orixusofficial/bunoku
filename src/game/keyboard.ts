@@ -8,6 +8,7 @@ type Actions = {
 export function keyboardHandlers(actions: Actions, brush: KeyboardBrush) {
   const keydown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase()
+    if ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) && key === 'escape') return
     if (!actions.enabled() || event.ctrlKey || event.altKey || event.metaKey) { brush.held = false; brush.visited.clear(); return }
     const movement: Record<string, [number, number]> = { w: [-1, 0], arrowup: [-1, 0], s: [1, 0], arrowdown: [1, 0], a: [0, -1], arrowleft: [0, -1], d: [0, 1], arrowright: [0, 1] }
     if (!(key in movement) && !['enter', ' ', 'q', 'e', 'r', 'escape'].includes(key)) return

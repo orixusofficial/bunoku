@@ -1,3 +1,4 @@
+import { gameStorage } from '../playgama/storage.ts'
 const PROGRESS_KEY = 'bunoku.normalLevel'
 type ProgressStorage = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -16,7 +17,7 @@ export function difficultyTier(level: number): number {
 
 export function loadNormalLevel(storage?: ProgressStorage): number {
   try {
-    const value = Number((storage ?? globalThis.localStorage).getItem(PROGRESS_KEY))
+    const value = Number((storage ?? ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : globalThis.localStorage)).getItem(PROGRESS_KEY))
     return Number.isSafeInteger(value) && value > 0 ? value : 1
   } catch { return 1 }
 }
@@ -24,7 +25,7 @@ export function loadNormalLevel(storage?: ProgressStorage): number {
 export function saveNormalLevel(level: number, storage?: ProgressStorage): void {
   gridForLevel(level)
   try {
-    const target = storage ?? globalThis.localStorage
+    const target = storage ?? ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : globalThis.localStorage)
     target.setItem(PROGRESS_KEY, String(Math.max(loadNormalLevel(target), level)))
   } catch { /* Gameplay remains usable when browser storage is unavailable. */ }
 }

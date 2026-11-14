@@ -13,15 +13,17 @@ import { initializeAudio, playSound, setMusicEnabled, setSoundEffectsEnabled } f
 import type { PuzzleDefinition } from './game/puzzle'
 import { createNormalPuzzleAsync, createPuzzleAsync } from './game/puzzleClient'
 import { loadNormalLevel } from './game/levels'
+import { gameStorage } from './playgama/storage.ts'
+import { showInterstitialAtBreak } from './playgama/platform.ts'
 
 type Screen = 'menu' | 'game' | 'daily' | 'daily-game' | 'daily-error' | 'tutorial'
 const MUSIC_PREF = 'bunoku.musicEnabled'
 const EFFECTS_PREF = 'bunoku.soundEffectsEnabled'
 function loadAudioPreference(key: string, fallback: boolean) {
-  try { const value = localStorage.getItem(key); return value === null ? fallback : value === 'true' } catch { return fallback }
+  try { const value = ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : localStorage).getItem(key); return value === null ? fallback : value === 'true' } catch { return fallback }
 }
 function saveAudioPreference(key: string, enabled: boolean) {
-  try { localStorage.setItem(key, String(enabled)) } catch { /* Preferences remain active for this app session. */ }
+  try { ((globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : localStorage).setItem(key, String(enabled)) } catch { /* Preferences remain active for this app session. */ }
 }
 
 function App() {
@@ -48,6 +50,7 @@ function App() {
     normalStarting.current = true
     if (entrySound && soundEffectsOn) playSound('entery')
     try {
+      if (globalThis.BUNOKU_GAMEDISTRIBUTION) await showInterstitialAtBreak()
       if (!normalPuzzle) setNormalPuzzle(await createNormalPuzzleAsync(loadNormalLevel()))
       setScreen('game')
     } catch (error) {
@@ -58,10 +61,11 @@ function App() {
   }
   const startDaily = async () => {
     const saved = allowances.dailyAttempt()
-    if (saved && !saved.finished) { setDailyResume(saved); setDailyPuzzle(saved.puzzle); setScreen('daily-game'); return }
+    if (saved && !saved.finished) { if (globalThis.BUNOKU_GAMEDISTRIBUTION) { if (dailyStarting.current) return; dailyStarting.current = true; try { await showInterstitialAtBreak() } finally { dailyStarting.current = false } } setDailyResume(saved); setDailyPuzzle(saved.puzzle); setScreen('daily-game'); return }
     if (dailyStarting.current || loadNormalLevel() < 11 || !allowances.status().available || allowances.status().dailyRemaining > 0) return
     dailyStarting.current = true
     try {
+      if (globalThis.BUNOKU_GAMEDISTRIBUTION) await showInterstitialAtBreak()
       const next = await createPuzzleAsync(9, 0, true)
       const claim = () => allowances.startDaily(loadNormalLevel() - 1, initialDailyProgress(next))
       const claimed = navigator.locks ? await navigator.locks.request('bunoku.daily-start', claim) : claim()
@@ -83,8 +87,8 @@ function App() {
   return (
     <>
       {screen === 'menu' && <MainMenu musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onPlay={() => { void startNormal(true) }} onDaily={startDaily} onTutorial={() => setScreen('tutorial')} onSettings={() => setSettingsOpen(true)} />}
-      {normalPuzzle && <div className="game-view" hidden={screen !== 'game'}><GameScreen active={screen === 'game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} initialPuzzle={normalPuzzle} /></div>}
-      {dailyPuzzle && screen === 'daily-game' && <div className="game-view" hidden={screen !== 'daily-game'}><GameScreen active={screen === 'daily-game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={() => setScreen('menu')} daily initialDailyProgress={dailyResume} initialPuzzle={dailyPuzzle} /></div>}
+      {normalPuzzle && <div className="game-view" hidden={screen !== 'game'}><GameScreen active={screen === 'game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { setScreen('menu'); void showInterstitialAtBreak() } : () => setScreen('menu')} initialPuzzle={normalPuzzle} /></div>}
+      {dailyPuzzle && screen === 'daily-game' && <div className="game-view" hidden={screen !== 'daily-game'}><GameScreen active={screen === 'daily-game' && !settingsOpen} musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onMenu={(globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? () => { setScreen('menu'); void showInterstitialAtBreak() } : () => setScreen('menu')} daily initialDailyProgress={dailyResume} initialPuzzle={dailyPuzzle} /></div>}
       {screen === 'daily-error' && <main className="simple-screen"><AppHeader musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onSettings={() => setSettingsOpen(true)} /><section className="placeholder-card"><h1>{errorIsDaily ? 'Daily Puzzle' : 'Bunoku'}</h1><p>{translatedError(dailyError)}</p><button className="pill-button primary-button" onClick={() => { if (errorIsDaily) void startDaily(); else void startNormal() }}>{t("Try Again")}</button><button className="text-button" onClick={() => setScreen('menu')}>{t("Back to Menu")}</button></section></main>}
       {screen === 'tutorial' && <HowToPlay musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onPlay={() => { void startNormal() }} onBack={() => setScreen('menu')} />}
       {screen === 'daily' && <DailyPlaceholder musicOn={musicOn} soundEffectsOn={soundEffectsOn} onToggleMusic={toggleMusic} onToggleSoundEffects={toggleEffects} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen('menu')} onPlay={() => setScreen('daily-game')} />}

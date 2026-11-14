@@ -1,5 +1,6 @@
 export type RewardKind = 'hint' | 'undo'
 import { validDailyProgress } from './dailyState.ts'
+import { gameStorage } from '../playgama/storage.ts'
 import type { DailyProgress } from './dailyState.ts'
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
 export const ALLOWANCE_KEY = 'bunoku.allowances.v1'
@@ -93,7 +94,7 @@ export function createAllowances(storage: () => StorageLike, wall = Date.now, mo
     },
   }
 }
-export const allowances = createAllowances(() => globalThis.localStorage)
+export const allowances = createAllowances(() => (globalThis.BUNOKU_PLAYGAMA || globalThis.BUNOKU_GAMEDISTRIBUTION) ? gameStorage : globalThis.localStorage)
 export function countdown(milliseconds: number) {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1000))
   return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(n => String(n).padStart(2, '0')).join(':')

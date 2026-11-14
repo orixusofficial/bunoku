@@ -9,16 +9,16 @@ import {createAllowances} from '../src/game/allowances.ts';
 const source=fs.readFileSync(new URL('../src/components/GameScreen.tsx',import.meta.url),'utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 let fixtureId=0;
-async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Promise.resolve('unavailable')}={}){
+async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Promise.resolve('unavailable'),playgama=false}={}){
  globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};
  const allowance=createAllowances(()=>({getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)}));
  const tutorial=await import('../src/game/tutorial.ts?fixture='+fixtureId++);
  const puzzle=daily?engine.createDailyPuzzle():engine.createPuzzle(level);
- let slots=[],cursor=0,clock=1000;const sounds=[],timers=[],requestedRewards=[];
+ let slots=[],cursor=0,clock=1000;const sounds=[],timers=[],requestedRewards=[],resetDialogs=[],discoveries=[];let breaks=0;
  const react={useState(v){const i=cursor++;if(!(i in slots))slots[i]=typeof v==='function'?v():v;return[slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v]},useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i]},useEffect(){cursor++}};
  const jsx=(type,props)=>({type,props}),module={exports:{}};
- const req=n=>n==='../game/dragPath'?dragPath:n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true,requestRewardedAd:adRequest}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
- vm.runInNewContext('(function(require,module,exports){'+js+'})',{localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
+ const req=n=>n==='../playgama/platform.ts'?{isPlatformPaused:()=>false,showInterstitialAtBreak:()=>{breaks++;return Promise.resolve()},reportOutcome(){}}:n==='../playgama/resetConfirmation.ts'?{confirmPuzzleReset:(...args)=>resetDialogs.push(args)}:n==='../playgama/discoveryAudio.ts'?{playDiscovery:voice=>discoveries.push(voice)}:n==='../game/dragPath'?dragPath:n==='../game/allowances.ts'?{allowances:allowance}:n==='../crazygames.ts'?{trackGameplay:()=>()=>{},confirmDuringGameplay:()=>true,requestRewardedAd:adRequest}:n==='../assetUrl.ts'?{assetUrl:p=>'./'+p}:n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='../game/puzzle'?engine:n==='../game/tutorial'?tutorial:n==='../i18n'?{t:s=>s,translatedError:s=>s}:n==='../audio'?{playSound:n=>{sounds.push(n);return{addEventListener(){},play(){return Promise.resolve()}}}}:{saveNormalLevel(){}};
+ vm.runInNewContext('(function(require,module,exports){'+js+'})',{BUNOKU_PLAYGAMA:playgama,localStorage:globalThis.localStorage,document:{elementFromPoint(){return null}},window:{confirm:()=>true},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){}})(req,module,module.exports);
  const props={initialPuzzle:puzzle,daily,onMenu(){},onRequestReward(kind){requestedRewards.push(kind)},rewardAction:null,musicOn:false,soundEffectsOn:true,onToggleMusic(){},onToggleSoundEffects(){}};
  const render=()=>{cursor=0;return module.exports.default(props)};
  function find(n,name){if(!n||typeof n!=='object')return;if(n.type?.name===name)return n;for(const c of [n.props?.children].flat(Infinity)){const found=find(c,name);if(found)return found}}
@@ -27,7 +27,7 @@ async function fixture({daily=false,level=1,storage=new Map(),adRequest=()=>Prom
  const tap=(index,kind='mouse')=>{board().onPointerStart(index,ev('pointerdown',kind));clock+=25;board().onPointerEnd(ev('pointerup',kind));clock+=60};
  const double=(index,kind='mouse')=>{tap(index,kind);tap(index,kind);if(kind==='mouse')board().onDoubleClick(index)};
  const drag=(indices,kind='mouse')=>{board().onPointerStart(indices[0],ev('pointerdown',kind));for(const index of indices.slice(1))board().onPointerEnter(index);board().onPointerEnd(ev('pointerup',kind));clock+=1000};
- render();return{puzzle,tutorial,slots,allowance,storage,sounds,timers,requestedRewards,render,node,board,controls,tap,double,drag,ev,wait(){clock+=1000}};
+ render();return{puzzle,tutorial,slots,allowance,storage,sounds,timers,requestedRewards,resetDialogs,discoveries,get breaks(){return breaks},render,node,board,controls,tap,double,drag,ev,wait(){clock+=1000}};
 }
 for(const kind of ['mouse','touch'])test(kind+': complete fresh-player steps 1–5 and finish the real puzzle',async()=>{
  const f=await fixture(),target=f.tutorial.tutorialTarget(f.puzzle),blocked=f.tutorial.tutorialBlockedCells(f.puzzle);
@@ -141,4 +141,29 @@ test('touch drag preserves rabbits, locked carrots and existing Xs; cancellation
  assert(before.every((c,i)=>c!=='mark'||i===row*f.puzzle.size||f.slots[1].cells[i]==='mark'))
  const cancelled=await fixture({level:2});stroke(cancelled,[0,5],{cancel:true});cancelled.tap(0,'touch')
  assert(!cancelled.slots[1].cells.includes('rabbit'))
+})
+
+test('Playgama Reset uses an in-game confirmation and resets only the current puzzle', async()=>{
+ const f=await fixture({level:2,playgama:true}),puzzle=f.puzzle
+ f.storage.set('bunoku.normalLevel','20');f.storage.set('bunoku.musicEnabled','true');f.storage.set('bunoku.language','es')
+ f.controls().onHint();const hintUses=f.allowance.status().hintFree
+ const wrong=Array.from({length:36},(_,i)=>i).find(i=>!puzzle.solution.includes(i))
+ f.double(wrong);assert.equal(f.slots[1].lives,2);assert.equal(f.board().failures.length,1)
+ f.wait();f.controls().onRestart();f.controls().onRestart()
+ assert.equal(f.slots[1].lives,2,'opening confirmation cannot reset the board')
+ assert(f.resetDialogs.length>0);f.resetDialogs[0][3]()
+ assert.equal(f.slots[1].lives,3);assert(f.slots[1].cells.every(c=>c==='empty'))
+ assert.equal(f.board().failures.length,0);assert.equal(f.board().hintCell,null)
+ assert.equal(f.controls().canUndo,false);assert.equal(f.puzzle,puzzle);assert.equal(f.breaks,1)
+ assert.equal(f.allowance.status().hintFree,hintUses)
+ assert.equal(f.storage.get('bunoku.normalLevel'),'20');assert.equal(f.storage.get('bunoku.musicEnabled'),'true');assert.equal(f.storage.get('bunoku.language'),'es')
+ const daily=await fixture({daily:true,playgama:true});daily.controls().onRestart();assert.equal(daily.resetDialogs.length,0)
+})
+for(const kind of ['mouse','touch'])test(`Playgama ${kind}: accepted discovery dispatches audio in the input handler exactly once`,async()=>{
+ const f=await fixture({level:2,playgama:true}),first=f.puzzle.solution[0]
+ f.double(first,kind);assert.deepEqual(f.discoveries,['nice'])
+ f.wait();f.double(first,kind);assert.deepEqual(f.discoveries,['nice'])
+ const second=engine.findHint(f.puzzle,f.slots[1].cells);f.wait();f.double(second,kind)
+ assert.deepEqual(f.discoveries,['nice','wow'])
+ assert(!f.sounds.includes('foundbunny'),'the Playgama scheduler owns the cue/voice pair, with no second playback')
 })
